@@ -1,0 +1,1235 @@
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <style>
+      body {
+        margin: 0;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      table {
+        /* cell-spacing: 0; */
+        border-collapse: collapse;
+        border-spacing: 0;
+        margin: 0;
+        padding: 0;
+      }
+      td {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+    <script src="https://unpkg.com/vue@next"></script>
+    <script src="https://unpkg.com/vue-color-input@latest"></script>
+    <script>
+      Array.prototype.remove = function (el) {
+        const index = this.indexOf(el);
+        if (index >= 0) {
+          this.splice(index, 1);
+        }
+      };
+      Array.prototype.count = function (predicate = () => true) {
+        return this.reduce((result, item, index) => {
+          if (predicate(item, index, this)) {
+            return result + 1;
+          } else {
+            return result;
+          }
+        }, 0);
+      };
+      Object.defineProperties(Array.prototype, {
+        last: {
+          get() {
+            return this[this.length - 1];
+          },
+          set(newValue) {
+            if (this.length <= 0)
+              throw new Error("cannot overwrite last value of empty array");
+            this[this.length - 1] = newValue;
+          },
+        },
+      });
+      {
+        (() => {
+          function addCurrentAccesor(proto) {
+            const descriptor = Object.getOwnPropertyDescriptor(proto, "value");
+            Object.defineProperties(proto, {
+              current: {
+                configurable: true,
+                enumerable: false,
+                get: descriptor.get,
+                set: descriptor.set,
+              },
+            });
+          }
+          addCurrentAccesor(Vue.ref().__proto__);
+          addCurrentAccesor(Vue.computed(() => {}).__proto__);
+          addCurrentAccesor(Vue.toRefs(Vue.reactive({ x: 0 })).x.__proto__);
+        })();
+      }
+
+      function pipe(init, ...fs) {
+        return fs.reduce((curr, f) => f(curr), init);
+      }
+      pipe.it = Symbol("pipe.it");
+      pipe.bound = (f, ...args) => {
+        return (it) => {
+          const realArgs = args.map((x) => (x === pipe.it ? it : x));
+          return f(...realArgs);
+        };
+      };
+      const pipeWrap =
+        (f) =>
+        (...args) =>
+        (x) =>
+          f(x, ...args);
+      pipe.map = pipeWrap(map);
+
+      function* range(...args) {
+        let lo = 0,
+          hi,
+          step = 1;
+        if (args.length === 1) {
+          [hi] = args;
+        } else {
+          [lo, hi, step = step] = args;
+        }
+        let curr = lo;
+        while ((hi - curr) / step > 0) {
+          yield curr;
+          curr += step;
+        }
+      }
+      function* map(iterable, mapper) {
+        let i = 0;
+        for (const x of iterable) {
+          yield mapper(x, i);
+          i++;
+        }
+      }
+      function collect(iterable) {
+        return Array.from(iterable);
+      }
+      function forEach(iterable, action) {
+        for (const x of iterable) {
+          action(x);
+        }
+      }
+      function* filter(iterable, filterer) {
+        for (const x of iterable) {
+          if (filterer(x)) {
+            yield x;
+          }
+        }
+      }
+      function* pairs(iterable) {
+        let prev = null;
+        let first = true;
+        for (const x of iterable) {
+          if (!first) {
+            yield [prev, x];
+          } else {
+            first = false;
+          }
+          prev = x;
+        }
+      }
+      function* enumerate(iterable) {
+        let i = 0;
+        for (const x of iterable) {
+          yield [x, i];
+          i++;
+        }
+      }
+      function* groups(iterable, n = 2, every = 1) {
+        const prev = [];
+        for (const [x, i] of enumerate(iterable)) {
+          prev.push(x);
+          if (prev.length > n) prev.shift();
+          if (i >= n - 1 && (i - n + 1) % every == 0) {
+            yield prev.slice();
+          }
+        }
+      }
+      function* reverse(array) {
+        for (const i of range(array.length, 0, -1)) {
+          yield array[i - 1];
+        }
+      }
+      function sum(iterable) {
+        let s = 0;
+        for (const x of iterable) {
+          s += x;
+        }
+        return s;
+      }
+      function* generateAllPermutations(arr) {
+        if (arr.length == 0) {
+          yield [];
+          return;
+        }
+
+        for (const i of range(0, arr.length)) {
+          const newArray = arr.filter((x, j) => j != i);
+          for (const sub of generateAllPermutations(newArray)) {
+            yield [arr[i], ...sub];
+          }
+        }
+      }
+      function maxOf(arr, acc) {
+        let bestScore = null;
+        let best = undefined;
+        for (const x of arr) {
+          const score = acc(x);
+          if (bestScore === null || score > bestScore) {
+            best = x;
+            bestScore = score;
+          }
+        }
+        return best;
+      }
+      function randomInt(lo, hi, step = 1) {
+        return Math.floor((Math.random() * (hi - lo)) / step) * step + lo;
+      }
+      function randomChoice(items) {
+        const index = randomInt(0, items.length);
+        return items[index];
+      }
+      function fromPolar(angle, r = 1) {
+        return { x: Math.cos(angle) * r, y: Math.sin(angle) * r };
+      }
+      function useEventHandler(target, eventType, handler) {
+        Vue.onMounted(() => {
+          target.addEventListener(eventType, handler);
+        });
+        Vue.onBeforeUnmount(() => {
+          target.removeEventListener(eventType, handler);
+        });
+      }
+      function useComputedStorage(
+        key,
+        initialValue,
+        storage = localStorage,
+        transform = JSON
+      ) {
+        let value = storage.getItem(key);
+        if (value == null) {
+          value = initialValue;
+        } else {
+          value = transform.parse(value);
+        }
+        const _valueRef = Vue.ref(value);
+        const valueRef = Vue.computed({
+          get: () => _valueRef.value,
+          set: (newValue) => {
+            _valueRef.value = newValue;
+            storage.setItem(key, transform.stringify(_valueRef.value));
+          },
+        });
+        useEventHandler(window, "storage", (event) => {
+          if (event.storageArea === storage && event.key === key) {
+            valueRef.value = transform.parse(event.newValue);
+          }
+        });
+        return valueRef;
+      }
+      function useTimeout(effect, delay, source) {
+        let timeoutId = -1;
+        const staleRef = Vue.ref(false);
+        Vue.watch(source, () => {
+          clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => {
+            effect();
+            timeoutId = -1;
+            staleRef.value = false;
+          }, delay);
+          staleRef.value = true;
+        });
+        return { stale: staleRef };
+      }
+      function createContext(defaultValue) {
+        const hasDefault = arguments.length >= 1;
+        const symbol = Symbol();
+        return {
+          provide(value) {
+            Vue.provide(symbol, value);
+          },
+          inject(myDefault) {
+            const passedDefault = arguments.length >= 1;
+            return Vue.inject(
+              symbol,
+              passedDefault
+                ? myDefault
+                : hasDefault
+                ? defaultValue
+                : Vue.computed(() => {
+                    throw new Error("no default");
+                  })
+            );
+          },
+        };
+      }
+      function listed(
+        array,
+        separator = ", ",
+        and = " and ",
+        nothing = "",
+        oxford = true
+      ) {
+        if (array.length === 0) return `${nothing}`;
+        if (array.length === 1) return `${array[0]}`;
+        if (array.length === 2) return `${array[0]}${and}${array[1]}`;
+        return array
+          .map((x, i) => {
+            return `${
+              i > 0 && (i < array.length - 1 || oxford) ? separator : ""
+            }${i === array.length - 1 ? and : ""}${x}`;
+          })
+          .join("");
+      }
+    </script>
+    <script>
+      var app = Vue.createApp({});
+      var roomContext = createContext();
+      var levelContext = createContext();
+      var stateContext = createContext();
+    </script>
+
+    <script>
+      app.config.globalProperties.$filters = {
+        listed,
+        json: (x) => JSON.stringify(x),
+      };
+
+      function not(ref) {
+        return Vue.computed(() => !ref.current);
+      }
+
+      function usePeriodic(effect, _getPeriod, enabledRef, debug) {
+        let timeoutId = null;
+
+        const getPeriod = () => {
+          const value = _getPeriod();
+          if (debug) console.log(value);
+          return value;
+        };
+
+        function update() {
+          if (enabledRef.current) {
+            timeoutId = setTimeout(() => {
+              effect();
+              update();
+            }, getPeriod());
+          } else {
+            timeoutId = null;
+          }
+        }
+
+        update();
+
+        Vue.watch(enabledRef, (isEnabled, wasEnabled) => {
+          if (isEnabled && !wasEnabled && timeoutId === null) {
+            update(); // need to restart was disabled
+          }
+          if (wasEnabled && !isEnabled && timeoutId !== null) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+        });
+
+        Vue.onUnmounted(() => {
+          clearTimeout(timeoutId);
+        });
+      }
+
+      class DefaultMap extends Map {
+        constructor(defaultComputer, ...args) {
+          super(...args);
+          this.defaultComputer = defaultComputer;
+        }
+        get(key) {
+          if (!this.has(key)) {
+            this.set(key, this.defaultComputer(key));
+          }
+          return super.get(key);
+        }
+      }
+
+      class ListMap extends DefaultMap {
+        constructor(...args) {
+          super(() => [], ...args);
+        }
+      }
+
+      const { useKeybind } = (function () {
+        const registrations = new ListMap();
+        function handler(event) {
+          registrations.get(event.code).forEach((h) => {
+            h();
+          });
+        }
+        document.addEventListener("keydown", handler);
+        function useKeybind(keycode, handler) {
+          function uniqueHandler() {
+            handler();
+          }
+          registrations.get(keycode).push(uniqueHandler);
+          Vue.onUnmounted(() => {
+            registrations.get(keycode).remove(uniqueHandler);
+          });
+        }
+        return { useKeybind };
+      })();
+
+      const { nowRef } = (function () {
+        const nowRef = Vue.ref(performance.now());
+
+        function update() {
+          setTimeout(() => {
+            nowRef.current = performance.now();
+            update();
+          }, 50);
+        }
+
+        update();
+
+        return { nowRef };
+      })();
+    </script>
+
+    <style>
+      html {
+        font-family: "Roboto", sans-serif;
+      }
+      html,
+      body {
+        min-height: 100vh;
+      }
+      body {
+        background: #eee;
+      }
+      .hide {
+        display: none;
+      }
+      .container {
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+        min-height: 100%;
+      }
+      .full-column {
+        display: flex;
+        flex-flow: column nowrap;
+        min-height: 100%;
+      }
+      .mt {
+        padding-top: 20px;
+      }
+      .mb {
+        padding-bottom: 20px;
+      }
+
+      .position-root {
+        position: relative;
+      }
+      .position-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+      }
+
+      .button {
+        background: #dde;
+        border: 1px outset gray;
+        border-radius: 5px;
+        padding: 4px 10px;
+        font-family: inherit;
+        font-size: 1rem;
+      }
+
+      .button:hover {
+        background: #aab;
+      }
+
+      .button:active {
+        background: #887;
+      }
+    </style>
+
+    <style>
+      .cell {
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+      .cell > * {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+      }
+      .cell--wall {
+        background-color: lightgray;
+        border: 10px outset gray;
+        border-radius: 10px;
+      }
+      .cell--wall--right {
+        border-right-width: 0;
+      }
+      .cell--wall--left {
+        border-left-width: 0;
+      }
+      .cell--wall--top {
+        border-top-width: 0;
+      }
+      .cell--wall--bottom {
+        border-bottom-width: 0;
+      }
+      .cell--wall--right,
+      .cell--wall--top {
+        border-top-right-radius: 0;
+      }
+      .cell--wall--left,
+      .cell--wall--top {
+        border-top-left-radius: 0;
+      }
+      .cell--wall--left,
+      .cell--wall--bottom {
+        border-bottom-left-radius: 0;
+      }
+      .cell--wall--right,
+      .cell--wall--bottom {
+        border-bottom-right-radius: 0;
+      }
+      .cell--box {
+        border: 2px solid black;
+        background-color: yellow;
+      }
+      .cell--player {
+        background-color: red;
+      }
+      .cell--floor {
+        background-color: darkgray;
+        border: 1px solid gray;
+      }
+      .cell--room-placeholder {
+        background-color: blue;
+      }
+      .cell__button-overlay {
+        left: 5px;
+        right: 5px;
+        top: 5px;
+        bottom: 5px;
+        border: 5px solid #eee;
+      }
+      .player-eyes {
+        transform: rotate(90deg);
+        text-align: center;
+        font-size: 50px;
+      }
+    </style>
+    <script type="text/html" id="cell-view">
+      <div class="cell">
+        <div class="cell--floor"></div>
+        <div v-if="isWall" :class="wallClasses"></div>
+        <div v-if="isBox" class="cell--box"></div>
+        <div v-if="isPlayer" class="cell--player"></div>
+        <template v-if="isRoom">
+          <div v-if="depth > 0">
+            <room-view :room="innerRoom" :depth="depth - 1"></room-view>
+          </div>
+          <div v-else class="cell--room-placeholder"></div>
+        </template>
+        <div
+          v-if="isButton || isPlayerButton"
+          class="cell__button-overlay"
+        ></div>
+        <div v-if="isPlayer || isPlayerButton" class="player-eyes">:</div>
+      </div>
+    </script>
+    <script>
+      app.component("cell-view", {
+        template: "#cell-view",
+        props: ["x", "y", "content", "depth"],
+        setup(props) {
+          const { x, y, content } = Vue.toRefs(props);
+
+          const room = roomContext.inject();
+          const level = levelContext.inject();
+
+          const contentContains = (type, f) =>
+            containsContent(content.current, type, f);
+          const isWall = Vue.computed(() => contentContains("wall"));
+          const isBox = Vue.computed(() => contentContains("block"));
+          const isPlayer = Vue.computed(() => contentContains("player"));
+          const isButton = Vue.computed(() =>
+            contentContains("floor", (x) => x.buttonType === "Button")
+          );
+          const isPlayerButton = Vue.computed(() =>
+            contentContains("floor", (x) => x.buttonType === "PlayerButton")
+          );
+          const isRoom = Vue.computed(() => contentContains("room"));
+          const innerRoom = Vue.computed(() => {
+            if (props.depth === 0) return null;
+            const roomId = isRoom.current
+              ? content.current.find((x) => x.type === "room").id
+              : null;
+            return level.rooms.find((room) => room.id === roomId);
+          });
+
+          function wallAt(x, y) {
+            return (
+              !inBounds(room.current, x, y) ||
+              containsContent(getContent(room.current, x, y), "wall")
+            );
+          }
+          const hasRightWall = Vue.computed(
+            () => isWall.current && wallAt(x.current + 1, y.current)
+          );
+          const hasLeftWall = Vue.computed(
+            () => isWall.current && wallAt(x.current - 1, y.current)
+          );
+          const hasTopWall = Vue.computed(
+            () => isWall.current && wallAt(x.current, y.current + 1)
+          );
+          const hasBottomWall = Vue.computed(
+            () => isWall.current && wallAt(x.current, y.current - 1)
+          );
+
+          const wallClasses = Vue.computed(() => ({
+            "cell--wall": isWall.current,
+            "cell--wall--right": hasRightWall.current,
+            "cell--wall--left": hasLeftWall.current,
+            "cell--wall--top": hasTopWall.current,
+            "cell--wall--bottom": hasBottomWall.current,
+          }));
+
+          return {
+            isWall,
+            isBox,
+            isPlayer,
+            isButton,
+            isPlayerButton,
+            isRoom,
+            innerRoom,
+            wallClasses,
+          };
+        },
+      });
+    </script>
+
+    <style>
+      .room-grid {
+        display: grid;
+        grid-auto-rows: 1fr;
+        height: 100%;
+        width: 100%;
+      }
+      .room-grid.room-grid--small {
+        width: 100px;
+        height: 100px;
+      }
+    </style>
+    <script type="text/html" id="room-view">
+      <div class="room-grid" :class="classes" :style="gridStyles">
+        <div v-for="[x, y] of positions" @click="$emit('cell-clicked', [x, y])">
+          <cell-view :depth="depth" :x="x" :y="y" :content="getContent(x, y)" />
+        </div>
+      </div>
+    </script>
+    <script>
+      app.component("room-view", {
+        template: "#room-view",
+        props: ["room", "depth", "size"],
+        setup(props) {
+          const { room } = Vue.toRefs(props);
+
+          roomContext.provide(room);
+
+          const width = Vue.computed(() => room.current.width);
+          const height = Vue.computed(() => room.current.height);
+
+          const positions = Vue.computed(() =>
+            pipe(range(width.current - 1, -1, -1), Array.from).flatMap((y) =>
+              pipe(
+                range(height.current),
+                pipe.map((x) => [x, y]),
+                Array.from
+              )
+            )
+          );
+
+          const gridStyles = Vue.computed(() => ({
+            gridTemplateColumns: `repeat(${width.current}, 1fr)`,
+          }));
+
+          const classes = Vue.computed(() => ({
+            "room-grid--small": props.size === "small",
+          }));
+
+          const getContent = (x, y) => {
+            return room.current.contents.filter((i) => i.x === x && i.y === y);
+          };
+
+          return {
+            width: room.current.width,
+            height: room.current.height,
+            positions,
+            gridStyles,
+            classes,
+            getContent,
+          };
+        },
+      });
+    </script>
+
+    <style>
+      .tool-group {
+        display: inline-block;
+        margin-right: 10px;
+      }
+      .tool-button {
+        background: #ccc;
+        border: 1px darkgray solid;
+      }
+      .tool-button:first-child {
+        border-top-left-radius: 10px;
+        border-bottom-left-radius: 10px;
+      }
+      .tool-button:last-child {
+        border-top-right-radius: 10px;
+        border-bottom-right-radius: 10px;
+      }
+      .tool-button--selected {
+        background: white;
+      }
+    </style>
+    <script type="text/html" id="tool-button">
+      <button
+        class="tool-button"
+        :class="classes"
+        @click="$emit('select-tool', tool.toolId)"
+      >
+        {{tool.name}}
+      </button>
+    </script>
+    <script>
+      app.component("tool-button", {
+        template: "#tool-button",
+        props: ["tool", "currentTool"],
+        setup(props) {
+          const isSelected = Vue.computed(
+            () => props.tool.toolId === props.currentTool
+          );
+          const classes = Vue.computed(() => ({
+            "tool-button--selected": isSelected.current,
+          }));
+          return {
+            classes,
+          };
+        },
+      });
+    </script>
+
+    <script type="text/html" id="tool-selector">
+      <div>
+        <div class="tool-group">
+          <tool-button
+            v-for="tool of TOOLS"
+            :tool="tool"
+            :current-tool="currentTool"
+            @select-tool="$emit('select-tool', $event)"
+          ></tool-button>
+        </div>
+        <div class="tool-group">
+          <button class="tool-button" @click="changeRoom(-1)">Prev Room</button>
+          <button class="tool-button" @click="changeRoom(+1)">Next Room</button>
+        </div>
+        <div class="tool-group">
+          <button class="tool-button" @click="bigger">+</button>
+          <button class="tool-button" @click="smaller">-</button>
+        </div>
+      </div>
+    </script>
+    <script>
+      const makeTool = (toolId, name) => ({ toolId, name });
+      const TOOLS = [
+        makeTool("floor", "Floor"),
+        makeTool("wall", "Wall"),
+        makeTool("box", "Box"),
+        makeTool("player", "Player"),
+        makeTool("button", "Button"),
+        makeTool("player-button", "Goal"),
+        makeTool("room", "Room"),
+      ];
+      app.component("tool-selector", {
+        template: "#tool-selector",
+        props: ["currentTool"],
+        setup() {
+          const level = levelContext.inject();
+          const state = stateContext.inject();
+          const room = roomContext.inject();
+          const changeRoom = (delta) => {
+            const roomIndex = level.rooms.findIndex((r) => r === room.current);
+            const newRoomIndex =
+              (roomIndex + level.rooms.length + delta) % level.rooms.length;
+            state.room = level.rooms[newRoomIndex].id;
+          };
+          const bigger = () => {
+            expandRoom(room.current, 1, 1, 1, 1);
+          };
+          const smaller = () => {
+            expandRoom(room.current, -1, -1, -1, -1);
+          };
+          return {
+            TOOLS,
+            changeRoom,
+            bigger,
+            smaller,
+          };
+        },
+      });
+    </script>
+
+    <style>
+      .room-select__grid {
+        display: flex;
+        gap: 10px;
+        flex: row wrap;
+        justify-content: start;
+      }
+      .room-select__grid-cell {
+        border-radius: 5px;
+        padding: 10px;
+      }
+      .room-select__grid-cell:hover {
+        background: #bbb;
+      }
+    </style>
+    <script type="text/html" id="room-select">
+      <div class="app-modal__card">
+        <div class="room-select__grid">
+          <template v-for="room of level.rooms">
+            <div
+              class="room-select__grid-cell"
+              @click="$emit('select', room.id)"
+            >
+              <room-view size="small" :room="room"></room-view>
+            </div>
+          </template>
+          <div class="tool-group">
+            <button class="tool-button" @click="$emit('select', null)">
+              New
+            </button>
+          </div>
+        </div>
+      </div>
+    </script>
+    <script>
+      app.component("room-select", {
+        template: "#room-select",
+        setup() {
+          const level = levelContext.inject();
+
+          return {
+            level,
+          };
+        },
+      });
+    </script>
+
+    <script type="text/html" id="room-editor">
+      <tool-selector
+        :current-tool="currentTool"
+        @select-tool="currentTool = $event"
+      />
+      <color-input v-model="room.color"></color-input>
+      <div style="width: 520px; height: 520px">
+        <room-view :room="room" @cell-clicked="onCellClicked" :depth="1" />
+      </div>
+    </script>
+    <script>
+      app.component("room-editor", {
+        template: "#room-editor",
+        props: ["roomId"],
+        setup(props, { emit }) {
+          const currentTool = Vue.ref("floor");
+          const state = stateContext.inject();
+          const level = levelContext.inject();
+          const room = Vue.computed(() =>
+            level.rooms.find((r) => r.id === props.roomId)
+          );
+          const onCellClicked = ([x, y]) => {
+            room.current.contents = room.current.contents.filter((c) => {
+              if (
+                (c.x === x && c.y === y) ||
+                (currentTool.current === "player" && c.type === "player")
+              ) {
+                return false;
+              }
+              return true;
+            });
+            if (currentTool.current === "wall") {
+              room.current.contents.push({ type: "wall", x, y });
+            }
+            if (currentTool.current === "box") {
+              room.current.contents.push({ type: "block", x, y });
+            }
+            if (currentTool.current === "player") {
+              room.current.contents.push({ type: "player", x, y });
+            }
+            if (currentTool.current === "button") {
+              room.current.contents.push({
+                type: "floor",
+                x,
+                y,
+                buttonType: "Button",
+              });
+            }
+            if (currentTool.current === "player-button") {
+              room.current.contents.push({
+                type: "floor",
+                x,
+                y,
+                buttonType: "PlayerButton",
+              });
+            }
+            if (currentTool.current === "room") {
+              state.roomSelect = {
+                x,
+                y,
+                targetId: state.room,
+              };
+            }
+          };
+
+          roomContext.provide(room);
+
+          return {
+            room,
+            currentTool,
+            onCellClicked,
+          };
+        },
+      });
+    </script>
+
+    <style>
+      .app-modal__card {
+        border-radius: 5px;
+        background: white;
+        padding: 20px;
+      }
+      .app-modal__container {
+        z-index: 1000;
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+      }
+      .app-modal__scrim {
+        position: absolute;
+        z-index: 1001;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #eeea;
+      }
+      .app-modal__content {
+        position: relative;
+        z-index: 1002;
+        margin-top: 100px;
+        margin-left: auto;
+        margin-right: auto;
+        width: 520px;
+      }
+    </style>
+    <script type="text/html" id="app-modal">
+      <teleport to="body">
+        <div class="app-modal__container">
+          <div class="app-modal__scrim" @click="$emit('close')"></div>
+          <div class="app-modal__content">
+            <slot></slot>
+          </div>
+        </div>
+      </teleport>
+    </script>
+    <script>
+      app.component("app-modal", {
+        template: "#app-modal",
+      });
+    </script>
+
+    <style>
+      .level-code {
+        font-family: "Courier New", Courier, monospace;
+        white-space: pre;
+      }
+    </style>
+    <script type="text/html" id="main-app">
+      <div class="container">
+        <div class="full-column mt mb position-root">
+          <room-editor
+            v-if="state.room !== null"
+            :room-id="state.room"
+          ></room-editor>
+          <button @click="showLevel = !showLevel">Toggle Level!</button>
+          <button @click="saveLevel">Save!</button>
+          <div v-if="showLevel" class="level-code">{{levelAsText}}</div>
+          <app-modal v-if="state.roomSelect" @close="state.roomSelect = null">
+            <room-select @select="handleRoomSelect"></room-select>
+          </app-modal>
+        </div>
+      </div>
+    </script>
+    <script>
+      function defaultRoom(id) {
+        return {
+          id,
+          width: 5,
+          height: 5,
+          color: { h: 216, s: 0.8, v: 1.0 },
+          contents: [],
+        };
+      }
+      app.component("main-app", {
+        template: "#main-app",
+        setup() {
+          const level = Vue.reactive({
+            title: "mitch",
+            rooms: [defaultRoom(0)],
+          });
+
+          const state = Vue.reactive({
+            gallery: true,
+            room: 0,
+            roomSelect: null,
+            nextRoomId: 1,
+          });
+          const levelAsText = Vue.computed(() => levelToFile(level));
+          const showLevel = Vue.ref(true);
+
+          const handleRoomSelect = (selectedRoomId) => {
+            if (state.roomSelect != null) {
+              const { x, y, targetId: targetRoomId } = state.roomSelect;
+              if (selectedRoomId === null) {
+                const newRoom = defaultRoom(state.nextRoomId++);
+                level.rooms.push(newRoom);
+                selectedRoomId = newRoom.id;
+              }
+              const targetRoom = level.rooms.find((r) => r.id === targetRoomId);
+              targetRoom.contents.push({
+                type: "room",
+                x,
+                y,
+                id: selectedRoomId,
+              });
+              state.roomSelect = null;
+            }
+          };
+
+          const saveLevel = () => {
+            fetch("/save", {
+              method: "POST",
+              body: JSON.stringify({
+                fileName: `${level.title.replace(/\W+/g, "-")}.txt`,
+                text: levelAsText.current,
+              }),
+              headers: {
+                "Content-type": "application/json; charset=UTF-8",
+              },
+            });
+          };
+
+          levelContext.provide(level);
+          stateContext.provide(state);
+
+          return {
+            level,
+            state,
+            showLevel,
+            levelAsText,
+            handleRoomSelect,
+            saveLevel,
+          };
+        },
+      });
+
+      function getContent(room, x, y) {
+        const contents = room.contents.filter((c) => c.x === x && c.y === y);
+        return contents;
+      }
+      function inBounds(room, x, y) {
+        return 0 <= x && x < room.width && 0 <= y && y < room.height;
+      }
+      function containsContent(contents, type, f) {
+        return (
+          contents.filter((c) => c.type === type && (f == null || f(c)))
+            .length > 0
+        );
+      }
+      function expandRoom(
+        room,
+        expandTop,
+        expandRight,
+        expandBottom,
+        expandLeft
+      ) {
+        const newWidth = room.width + expandLeft + expandRight;
+        const newHeight = room.height + expandTop + expandBottom;
+
+        const newContents = [];
+
+        for (const x of range(0, newWidth)) {
+          for (const y of range(0, newHeight)) {
+            let oldX = x - expandLeft;
+            let oldY = y - expandBottom;
+            let outside =
+              oldX < 0 || oldX >= room.width || oldY < 0 || oldY >= room.height;
+            oldX = clamp(oldX, 0, room.width - 1);
+            oldY = clamp(oldY, 0, room.height - 1);
+            const contents = getContent(room, oldX, oldY);
+            newContents.push(
+              ...contents
+                .filter((c) => {
+                  // only walls should be expanded
+                  return !outside || c.type === "wall";
+                })
+                .map((c) => ({ ...c, x, y }))
+            );
+          }
+        }
+
+        room.width = newWidth;
+        room.height = newHeight;
+        room.contents = newContents;
+      }
+
+      function clamp(x, lo, hi) {
+        return x < lo ? lo : x > hi ? hi : x;
+      }
+
+      class Writer {
+        constructor() {
+          this.output = "";
+          this.lineEnding = "\n";
+          this.indentWith = "\t";
+
+          this.indents = [];
+          this.lineStart = true;
+        }
+
+        write(x) {
+          this.ensureIndent();
+          this.lineStart = false;
+          this.output += x;
+        }
+        writeLine(x) {
+          this.write(x);
+          this.endLine();
+        }
+        getIndent() {
+          return this.indents.join("");
+        }
+        ensureIndent() {
+          if (this.lineStart) {
+            this.output += this.getIndent();
+            this.lineStart = false;
+          }
+        }
+        endLine() {
+          this.output += this.lineEnding;
+          this.lineStart = true;
+        }
+        indented(...args) {
+          let indentWith, cb;
+          if (args.length >= 2) {
+            indentWith = args[0];
+            cb = args[1];
+          }
+          if (args.length <= 1) {
+            cb = args[0];
+          }
+          this.indents.push(indentWith ?? this.indentWith);
+          cb();
+          this.indents.pop();
+        }
+      }
+      function levelToFile(level) {
+        const file = new Writer();
+        file.writeLine("version 4");
+        file.writeLine("#");
+        file.writeLine("Block -1 -1 0 1 1 0 0 0 1 0 0 0 0 0 0 1");
+        file.indented(() => {
+          const idToRoom = new Map();
+          const roomToId = new Map();
+          let currentRoomId = 1;
+          level.rooms.forEach((x) => {
+            idToRoom.set(x.id, x);
+            roomToId.set(x, currentRoomId++);
+          });
+          playerRoomId = currentRoomId++;
+
+          level.rooms.forEach((room) => {
+            const roomId = roomToId.get(room);
+            file.writeLine(
+              `Block 0 0 ${roomId} ${room.width} ${room.height} ${
+                room.color.h / 360
+              } ${room.color.s} ${room.color.v} 1 0 0 0 0 0 0 1`
+            );
+            file.indented(() => {
+              room.contents.forEach((x) => {
+                if (x.type === "wall") {
+                  file.writeLine(`Wall ${x.x} ${x.y} 0 0 0`);
+                }
+                if (x.type === "floor") {
+                  file.writeLine(`Floor ${x.x} ${x.y} ${x.buttonType}`);
+                }
+                if (x.type === "block") {
+                  file.writeLine(
+                    `Block ${x.x} ${
+                      x.y
+                    } ${currentRoomId++} 1 1 0.4 1 1 1 1 0 0 0 0 0 0`
+                  );
+                }
+                if (x.type === "player") {
+                  file.writeLine(
+                    `Block ${x.x} ${x.y} ${playerRoomId} 1 1 0 1 1 1 1 1 0 0 0 0 0`
+                  );
+                }
+                if (x.type === "room") {
+                  const targetRoomId = roomToId.get(idToRoom.get(x.id));
+                  file.writeLine(
+                    `Ref ${x.x} ${x.y} ${targetRoomId} 1 0 0 0 0 0 0 0 0 0 0 0`
+                  );
+                }
+              });
+            });
+          });
+        });
+        return file.output;
+      }
+    </script>
+
+    <div id="app">
+      <main-app></main-app>
+    </div>
+    <script>
+      app.use(ColorInput);
+      window.root = app.mount("#app");
+    </script>
+  </body>
+</html>
