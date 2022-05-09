@@ -786,6 +786,9 @@
                 } else {
                   result.push({ x, y, box: { color: "black" } });
                 }
+                if (item.isClone ?? false) {
+                  result.push({ x, y, box: { color: "#FFFA" }})
+                }
               }
             });
             return result;
@@ -904,6 +907,7 @@
         makeTool("button", "Button"),
         makeTool("player-button", "Goal"),
         makeTool("room", "Room"),
+        makeTool("clone", "Clone"),
       ];
       app.component("tool-selector", {
         template: "#tool-selector",
@@ -960,11 +964,11 @@
               <room-view size="small" :room-id="room.id" :depth="0"></room-view>
             </div>
           </template>
-          <div class="tool-group">
-            <button class="tool-button" @click="$emit('select', null)">
-              New
-            </button>
-          </div>
+        </div>
+        <div class="tool-group">
+          <button class="tool-button" @click="$emit('select', null)">
+            New
+          </button>
         </div>
       </div>
     </script>
@@ -1094,10 +1098,19 @@
             }
             if (currentTool.current === "room") {
               state.roomSelect = {
+                type: "room",
                 x,
                 y,
                 targetId: state.room,
               };
+            }
+            if (currentTool.current === "clone") {
+              state.roomSelect = {
+                type: "clone",
+                x,
+                y,
+                targetId: state.room,
+              }
             }
           };
 
@@ -1211,18 +1224,20 @@
 
           const handleRoomSelect = (selectedRoomId) => {
             if (state.roomSelect != null) {
-              const { x, y, targetId: targetRoomId } = state.roomSelect;
+              const { type, x, y, targetId: targetRoomId } = state.roomSelect;
               if (selectedRoomId === null) {
                 const newRoom = defaultRoom(state.nextRoomId++);
                 level.rooms.push(newRoom);
                 selectedRoomId = newRoom.id;
               }
               const targetRoom = level.rooms.find((r) => r.id === targetRoomId);
+              // TODO if not clone, remove any other instances of this room
               targetRoom.contents.push({
                 type: "room",
                 x,
                 y,
                 id: selectedRoomId,
+                isClone: type === "clone",
               });
               state.roomSelect = null;
             }
@@ -1435,10 +1450,13 @@
         return pointCycles;
       }
       function levelToFile(level) {
+        function b (value) {
+          return value ? '1' : '0'
+        }
         const file = new Writer();
         file.writeLine("version 4");
         file.writeLine("#");
-        file.writeLine("Block -1 -1 0 1 1 0 0 0 1 0 0 0 0 0 0 1");
+        file.writeLine(`Block -1 -1 0 1 ${level.rooms.length} 0 0 0 1 0 0 0 0 0 1 0`);
         file.indented(() => {
           const idToRoom = new Map();
           const roomToId = new Map();
@@ -1449,12 +1467,12 @@
           });
           playerRoomId = currentRoomId++;
 
-          level.rooms.forEach((room) => {
+          level.rooms.forEach((room, index) => {
             const roomId = roomToId.get(room);
             file.writeLine(
-              `Block 0 0 ${roomId} ${room.width} ${room.height} ${
+              `Block 0 ${index} ${roomId} ${room.width} ${room.height} ${
                 room.color.h / 360
-              } ${room.color.s} ${room.color.v} 1 0 0 0 0 0 0 1`
+              } ${room.color.s} ${room.color.v} 1 0 0 0 0 0 1 0`
             );
             file.indented(() => {
               room.contents.forEach((x) => {
@@ -1479,7 +1497,7 @@
                 if (x.type === "room") {
                   const targetRoomId = roomToId.get(idToRoom.get(x.id));
                   file.writeLine(
-                    `Ref ${x.x} ${x.y} ${targetRoomId} 1 0 0 0 0 0 0 0 0 0 0 0`
+                    `Ref ${x.x} ${x.y} ${targetRoomId} ${b(!(x.isClone ?? false))} 0 0 0 0 0 0 0 0 0 0 0`
                   );
                 }
               });
