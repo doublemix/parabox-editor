@@ -26,6 +26,19 @@
         margin: 0;
         padding: 0;
       }
+      svg.cartesian {
+        display: flex;
+      }
+
+      /* Flip the vertical axis in <g> to emulate cartesian. */
+      svg.cartesian > g {
+        transform: scaleY(-1);
+      }
+
+      /* Re-flip all <text> element descendants to their original side up. */
+      svg.cartesian > g text {
+        transform: scaleY(-1);
+      }
     </style>
     <script src="https://unpkg.com/vue@next"></script>
     <script src="https://unpkg.com/vue-color-input@latest"></script>
@@ -547,7 +560,7 @@
         <div v-if="isPlayer" class="cell--player"></div>
         <template v-if="isRoom">
           <div v-if="depth > 0">
-            <room-view :room="innerRoom" :depth="depth - 1"></room-view>
+            <room-view :room-id="innerRoom.id" :depth="depth - 1"></room-view>
           </div>
           <div v-else class="cell--room-placeholder"></div>
         </template>
@@ -642,18 +655,91 @@
       }
     </style>
     <script type="text/html" id="room-view">
-      <div class="room-grid" :class="classes" :style="gridStyles">
-        <div v-for="[x, y] of positions" @click="$emit('cell-clicked', [x, y])">
-          <cell-view :depth="depth" :x="x" :y="y" :content="getContent(x, y)" />
-        </div>
-      </div>
+      <svg class="cartesian" :viewBox="viewBox" :width="width" :height="height">
+        <g>
+          <!-- floor -->
+          <template v-for="[x, y] of positions">
+            <rect
+              :x="x"
+              :y="y"
+              width="0.99"
+              height="0.99"
+              stroke="#666"
+              fill="#aaa"
+              stroke-width="0.01"
+            ></rect>
+          </template>
+          <!-- walls -->
+          <path
+            :d="wallPath"
+            fill="#ddd"
+            stroke-width="0.1"
+            stroke="#666"
+          ></path>
+          <template v-for="{ x, y, box, button, eyes, roomId } of elements">
+            <g :transform="`translate(${x}, ${y})`">
+              <rect
+                v-if="box"
+                x="0"
+                y="0"
+                width="1"
+                height="1"
+                :fill="box.color"
+                stroke="black"
+                :stroke-width="0.05"
+              ></rect>
+              <rect
+                v-if="button"
+                x="0.1"
+                y="0.1"
+                width="0.8"
+                height="0.8"
+                stroke="#ddd"
+                :stroke-width="0.05"
+                fill="none"
+              ></rect>
+              <template v-if="eyes">
+                <g :fill="button ? '#ddd' : '#333'">
+                  <circle cx="0.3" cy="0.6" r="0.1"></circle>
+                  <circle cx="0.7" cy="0.6" r="0.1"></circle>
+                </g>
+              </template>
+              <template v-if="roomId != null">
+                <g transform="scale(1, -1) translate(0, -1)">
+                  <room-view
+                    :room-id="roomId"
+                    :width="1"
+                    :height="1"
+                    :depth="depth - 1"
+                  ></room-view>
+                </g>
+              </template>
+            </g>
+          </template>
+        </g>
+      </svg>
     </script>
     <script>
       app.component("room-view", {
         template: "#room-view",
-        props: ["room", "depth", "size"],
+        props: {
+          roomId: [String, Number],
+          depth: Number,
+          size: String,
+          width: {
+            type: String,
+            default: "100%",
+          },
+          height: {
+            type: String,
+            default: "100%",
+          },
+        },
         setup(props) {
-          const { room } = Vue.toRefs(props);
+          const level = levelContext.inject();
+          const room = Vue.computed(() => {
+            return level.rooms.find((x) => x.id === props.roomId);
+          });
 
           roomContext.provide(room);
 
@@ -678,17 +764,63 @@
             "room-grid--small": props.size === "small",
           }));
 
+          const elements = Vue.computed(() => {
+            const result = [];
+            room.current.contents.forEach((item) => {
+              const { x, y } = item;
+              if (item.type === "block") {
+                result.push({ x, y, box: { color: "yellow" } });
+              }
+              if (item.type === "player") {
+                result.push({ x, y, box: { color: "red" }, eyes: true });
+              }
+              if (item.type === "floor" && item.buttonType === "PlayerButton") {
+                result.push({ x, y, button: true, eyes: true });
+              }
+              if (item.type === "floor" && item.buttonType === "Button") {
+                result.push({ x, y, button: true });
+              }
+              if (item.type === "room") {
+                if (props.depth > 0) {
+                  result.push({ x, y, roomId: item.id });
+                } else {
+                  result.push({ x, y, box: { color: "black" } });
+                }
+              }
+            });
+            return result;
+          });
+
           const getContent = (x, y) => {
             return room.current.contents.filter((i) => i.x === x && i.y === y);
           };
 
+          const wallPath = Vue.computed(() => {
+            const pointCycles = processWalls(room.current);
+            let path = "";
+            pointCycles.map((cycle) => {
+              path += "M";
+              cycle.forEach(({ x, y }) => {
+                path += `${x},${y} `;
+              });
+              path += "z";
+            });
+            return path;
+          });
+
           return {
-            width: room.current.width,
-            height: room.current.height,
             positions,
             gridStyles,
             classes,
             getContent,
+            wallPath,
+            elements,
+            viewBox: Vue.computed(
+              () =>
+                `0 ${-room.current.height} ${room.current.width} ${
+                  room.current.height
+                }`
+            ),
           };
         },
       });
@@ -825,7 +957,7 @@
               class="room-select__grid-cell"
               @click="$emit('select', room.id)"
             >
-              <room-view size="small" :room="room"></room-view>
+              <room-view size="small" :room-id="room.id" :depth="0"></room-view>
             </div>
           </template>
           <div class="tool-group">
@@ -849,14 +981,69 @@
       });
     </script>
 
+    <style>
+      .cell-select-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: grid;
+        grid-auto-rows: 1fr;
+        z-index: 1;
+      }
+    </style>
+    <script type="text/html" id="cell-select-overlay">
+      <div class="cell-select-overlay" :style="gridStyles">
+        <div
+          v-for="[x, y] of positions"
+          @click="$emit('click-cell', [x, y])"
+        ></div>
+      </div>
+    </script>
+    <script>
+      app.component("cell-select-overlay", {
+        template: "#cell-select-overlay",
+        props: {
+          width: Number,
+          height: Number,
+        },
+        setup(props) {
+          const positions = Vue.computed(() =>
+            pipe(range(props.width - 1, -1, -1), Array.from).flatMap((y) =>
+              pipe(
+                range(props.height),
+                pipe.map((x) => [x, y]),
+                Array.from
+              )
+            )
+          );
+
+          const gridStyles = Vue.computed(() => ({
+            gridTemplateColumns: `repeat(${props.width}, 1fr)`,
+          }));
+
+          return {
+            positions,
+            gridStyles,
+          };
+        },
+      });
+    </script>
+
     <script type="text/html" id="room-editor">
       <tool-selector
         :current-tool="currentTool"
         @select-tool="currentTool = $event"
       />
       <color-input v-model="room.color"></color-input>
-      <div style="width: 520px; height: 520px">
-        <room-view :room="room" @cell-clicked="onCellClicked" :depth="1" />
+      <div style="width: 520px; height: 520px; position: relative;">
+        <room-view :room-id="roomId" :depth="1" />
+        <cell-select-overlay
+          :width="room.width"
+          :height="room.height"
+          @click-cell="onCellClicked"
+        ></cell-select-overlay>
       </div>
     </script>
     <script>
@@ -1167,6 +1354,85 @@
           cb();
           this.indents.pop();
         }
+      }
+      function pointEqual(a, b) {
+        return a.x === b.x && a.y === b.y;
+      }
+      class KeyedMap extends Map {
+        constructor(keyComputer, ...args) {
+          super(...args)
+          this.keyComputer = keyComputer;
+        }
+        getByValue(value) {
+          const key = this.keyComputer.call(undefined, value);
+          if (this.has(key)) {
+            return this.get(key);
+          }
+          return undefined;
+        }
+        setByValue(value) {
+          const key = this.keyComputer.call(undefined, value);
+          this.set(key, value)
+        }
+        deleteByValue(value) {
+          const key = this.keyComputer.call(undefined, value);
+          this.delete(key)
+        }
+      }
+      function processWalls(room) {
+        function getNodeKey(node) {
+          const { x: x1, y: y1 } = node
+          const { x: x2, y: y2} = node.next
+          if (x1 === x2) {
+            return `x${x1}-${Math.min(y1, y2)}-${Math.max(y1, y2)}`
+          } else {
+            return `y${y1}-${Math.min(x1, x2)}-${Math.max(x1, x2)}`
+          }
+        }
+        const walls = room.contents.filter((x) => x.type === "wall");
+        const resultEdgeSets = [];
+        const allNodes = new Set();
+        const nodeMap = new KeyedMap(getNodeKey);
+        walls.forEach((wall) => {
+          const { x, y } = wall;
+          const p1 = { x, y, next: null };
+          const p2 = { x: x + 1, y, next: null };
+          const p3 = { x: x + 1, y: y + 1, next: null };
+          const p4 = { x, y: y + 1, next: null };
+          p1.next = p2;
+          p2.next = p3;
+          p3.next = p4;
+          p4.next = p1;
+          allNodes.add(p1);
+          allNodes.add(p2);
+          allNodes.add(p3);
+          allNodes.add(p4);
+
+          for (const p of [p1, p2, p3, p4]) {
+            let t
+            if (t = nodeMap.getByValue(p)) {
+              nodeMap.deleteByValue(t)
+              ;[p.next, t.next] = [t.next, p.next]
+            } else {
+              nodeMap.setByValue(p)
+            }
+          }
+        });
+
+        const pointCycles = []
+        while (allNodes.size > 0) {
+          const p = allNodes.values().next().value
+          const cycle = [p]
+          let pp = p
+          allNodes.delete(p)
+          while (pp.next !== p) {
+            pp = pp.next
+            allNodes.delete(pp)
+            cycle.push(pp)
+          }
+          pointCycles.push(cycle)
+        }
+        return pointCycles;
       }
       function levelToFile(level) {
         const file = new Writer();
