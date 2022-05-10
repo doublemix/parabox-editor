@@ -803,6 +803,7 @@
             let path = "";
             pointCycles.map((cycle) => {
               path += "M";
+              cycle = insetShape(cycle, 0.05)
               cycle.forEach(({ x, y }) => {
                 path += `${x},${y} `;
               });
@@ -1394,6 +1395,61 @@
           this.delete(key)
         }
       }
+      // function insetShape (points, delta) {
+      //   function get(i) {
+      //     return points[(i + points.length) % points.length]
+      //   }
+      //   const length = a => Math.sqrt(a.x * a.x + a.y * a.y)
+      //   const normalize = a => {
+      //     const aLength = length(a)
+      //     return { x: a.x / aLength, y: a.y / aLength }
+      //   }
+      //   const diff = (a, b) => ({ x: a.x - b.x, y: a.y - b.y })
+      //   const mul = (a, k) => ({ x: a.x * k, y: a.y * k })
+      //   const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y })
+      //   return points.map((curr, i) => {
+      //     const prev = get(i - 1)
+      //     const next = get(i + 1)
+
+      //     const a = normalize(diff(curr, prev))
+      //     const b = normalize(diff(next, curr))
+
+      //     const c = mul(diff(b, a), delta)
+      //     return add(curr, c)
+      //   })
+      // }
+      function insetShape (points, delta) {
+        function get(i) {
+          return points[(i + points.length) % points.length]
+        }
+        const length = a => Math.sqrt(a.x * a.x + a.y * a.y)
+        const normalize = a => {
+          const aLength = length(a)
+          return { x: a.x / aLength, y: a.y / aLength }
+        }
+        const diff = (a, b) => ({ x: a.x - b.x, y: a.y - b.y })
+        const mul = (a, k) => ({ x: a.x * k, y: a.y * k })
+        const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y })
+        const angle = (a) => Math.atan2(a.y, a.x)
+        const polar = (r, theta) => ({ x: r * Math.cos(theta), y: r * Math.sin(theta) })
+        return points.map((curr, i) => {
+          const prev = get(i - 1)
+          const next = get(i + 1)
+
+          const a = normalize(diff(prev, curr))
+          const b = normalize(diff(next, curr))
+
+          const aAngle = angle(a)
+          const bAngle = angle(b)
+          const spanAngle = (aAngle - bAngle) / 2
+          const cAngle = (aAngle + bAngle) / 2
+          // sin(spanAngle) = delta / h
+          const h = delta / Math.sin(spanAngle)
+
+          return add(curr, polar(h, cAngle))
+
+        })
+      }
       function processWalls(room) {
         function getNodeKey(node) {
           const { x: x1, y: y1 } = node
@@ -1445,7 +1501,12 @@
             allNodes.delete(pp)
             cycle.push(pp)
           }
-          pointCycles.push(cycle)
+          const cycleNoDups = (cycle.filter((x, i) => {
+            return !pointEqual(x, cycle[(i + 1) % cycle.length])
+          }))
+          if (cycleNoDups.length > 0) {
+            pointCycles.push(cycleNoDups)
+          }
         }
         return pointCycles;
       }
