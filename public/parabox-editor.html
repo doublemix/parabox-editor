@@ -42,6 +42,7 @@
     </style>
     <script src="https://unpkg.com/vue@next"></script>
     <script src="https://unpkg.com/vue-color-input@latest"></script>
+    <script src="https://unpkg.com/tinycolor2@1.4.2/dist/tinycolor-min.js"></script>
     <script>
       Array.prototype.remove = function (el) {
         const index = this.indexOf(el);
@@ -688,6 +689,16 @@
                 stroke="black"
                 :stroke-width="0.05"
               ></rect>
+              <template v-if="roomId != null">
+                <g transform="scale(1, -1) translate(0, -1)">
+                  <room-view
+                    :room-id="roomId"
+                    :width="1"
+                    :height="1"
+                    :depth="depth - 1"
+                  ></room-view>
+                </g>
+              </template>
               <rect
                 v-if="button"
                 x="0.1"
@@ -699,19 +710,13 @@
                 fill="none"
               ></rect>
               <template v-if="eyes">
-                <g :fill="button ? '#ddd' : '#333'">
+                <g
+                  :fill="button ? '#ddd' : eyes === 'possess' ? 'none' : '#333'"
+                  :stroke-width="eyes === 'possess' ? '0.02' : '0'"
+                  stroke="#333"
+                >
                   <circle cx="0.3" cy="0.6" r="0.1"></circle>
                   <circle cx="0.7" cy="0.6" r="0.1"></circle>
-                </g>
-              </template>
-              <template v-if="roomId != null">
-                <g transform="scale(1, -1) translate(0, -1)">
-                  <room-view
-                    :room-id="roomId"
-                    :width="1"
-                    :height="1"
-                    :depth="depth - 1"
-                  ></room-view>
                 </g>
               </template>
             </g>
@@ -764,15 +769,35 @@
             "room-grid--small": props.size === "small",
           }));
 
+          function getEyes(item) {
+            return typeof item.player === "number"
+              ? "player"
+              : item.player === "possess"
+              ? "possess"
+              : null;
+          }
+
           const elements = Vue.computed(() => {
             const result = [];
             room.current.contents.forEach((item) => {
               const { x, y } = item;
-              if (item.type === "block") {
-                result.push({ x, y, box: { color: "yellow" } });
+              if (item.type === "wall") {
+                const eyes = getEyes(item);
+                if (eyes) {
+                  result.push({
+                    x,
+                    y,
+                    eyes,
+                  });
+                }
               }
-              if (item.type === "player") {
-                result.push({ x, y, box: { color: "red" }, eyes: true });
+              if (item.type === "block") {
+                result.push({
+                  x,
+                  y,
+                  box: { color: tinycolor(item.color).toRgbString() },
+                  eyes: getEyes(item),
+                });
               }
               if (item.type === "floor" && item.buttonType === "PlayerButton") {
                 result.push({ x, y, button: true, eyes: true });
@@ -782,12 +807,17 @@
               }
               if (item.type === "room") {
                 if (props.depth > 0) {
-                  result.push({ x, y, roomId: item.id });
+                  result.push({ x, y, roomId: item.id, eyes: getEyes(item) });
                 } else {
-                  result.push({ x, y, box: { color: "black" } });
+                  result.push({
+                    x,
+                    y,
+                    box: { color: "black" },
+                    eyes: getEyes(item),
+                  });
                 }
                 if (item.isClone ?? false) {
-                  result.push({ x, y, box: { color: "#FFFA" }})
+                  result.push({ x, y, box: { color: "#FFFA" } });
                 }
               }
             });
@@ -803,7 +833,7 @@
             let path = "";
             pointCycles.map((cycle) => {
               path += "M";
-              cycle = insetShape(cycle, 0.05)
+              cycle = insetShape(cycle, 0.05);
               cycle.forEach(({ x, y }) => {
                 path += `${x},${y} `;
               });
@@ -847,7 +877,8 @@
         border-top-right-radius: 10px;
         border-bottom-right-radius: 10px;
       }
-      .tool-button--selected {
+      .tool-button--selected,
+      .tool-button--active {
         background: white;
       }
     </style>
@@ -878,6 +909,145 @@
       });
     </script>
 
+    <style>
+      .properties-panel {
+        border: 1px solid black;
+        padding: 10px;
+        margin: 10px 0;
+      }
+      .properties-panel__title {
+        border-bottom: 2px solid gray;
+        text-transform: uppercase;
+        margin-bottom: 7px;
+      }
+    </style>
+    <script type="text/html" id="properties-panel">
+      <div class="properties-panel">
+        <div class="properties-panel__title">{{title}}</div>
+        <div class="properties.panel__content">
+          <slot></slot>
+        </div>
+      </div>
+    </script>
+    <script>
+      app.component("properties-panel", {
+        template: "#properties-panel",
+        props: ["title"],
+      });
+    </script>
+
+    <script type="text/html" id="player-type-select-button">
+      <button :class="classes" @click="$emit('select', value)">
+        <slot></slot>
+      </button>
+    </script>
+    <script>
+      app.component("player-type-select-button", {
+        template: "#player-type-select-button",
+        props: ["value", "currentValue", "set"],
+        setup(props) {
+          const classes = Vue.computed(() => ({
+            "tool-button": true,
+            "tool-button--active": props.value === props.currentValue,
+          }));
+          return {
+            classes,
+          };
+        },
+      });
+    </script>
+
+    <script type="text/html" id="player-type-select">
+      <div class="tool-group">
+        <player-type-select-button
+          class="tool-button"
+          :value="null"
+          :current-value="modelValue"
+          @select="set($event)"
+        >
+          None
+        </player-type-select-button>
+        <player-type-select-button
+          class="tool-button"
+          :value="'possess'"
+          :current-value="modelValue"
+          @select="set($event)"
+        >
+          Possess
+        </player-type-select-button>
+        <player-type-select-button
+          class="tool-button"
+          :value="0"
+          :current-value="modelValue"
+          @select="set($event)"
+        >
+          1
+        </player-type-select-button>
+        <player-type-select-button
+          class="tool-button"
+          :value="1"
+          :current-value="modelValue"
+          @select="set($event)"
+        >
+          2
+        </player-type-select-button>
+        <player-type-select-button
+          class="tool-button"
+          :value="2"
+          :current-value="modelValue"
+          @select="set($event)"
+        >
+          3
+        </player-type-select-button>
+        <player-type-select-button
+          class="tool-button"
+          :value="3"
+          :current-value="modelValue"
+          @select="set($event)"
+        >
+          4
+        </player-type-select-button>
+        <player-type-select-button
+          class="tool-button"
+          :value="4"
+          :current-value="modelValue"
+          @select="set($event)"
+        >
+          5
+        </player-type-select-button>
+        <player-type-select-button
+          class="tool-button"
+          :value="5"
+          :current-value="modelValue"
+          @select="set($event)"
+        >
+          6
+        </player-type-select-button>
+        <player-type-select-button
+          class="tool-button"
+          :value="6"
+          :current-value="modelValue"
+          @select="set($event)"
+        >
+          7
+        </player-type-select-button>
+      </div>
+    </script>
+    <script>
+      app.component("player-type-select", {
+        template: "#player-type-select",
+        props: ["modelValue"],
+        setup(props, { emit }) {
+          const set = (value) => {
+            emit("update:modelValue", value);
+          };
+          return {
+            set,
+          };
+        },
+      });
+    </script>
+
     <script type="text/html" id="tool-selector">
       <div>
         <div class="tool-group">
@@ -901,6 +1071,7 @@
     <script>
       const makeTool = (toolId, name) => ({ toolId, name });
       const TOOLS = [
+        makeTool("select", "Select"),
         makeTool("floor", "Floor"),
         makeTool("wall", "Wall"),
         makeTool("box", "Box"),
@@ -1041,7 +1212,6 @@
         :current-tool="currentTool"
         @select-tool="currentTool = $event"
       />
-      <color-input v-model="room.color"></color-input>
       <div style="width: 520px; height: 520px; position: relative;">
         <room-view :room-id="roomId" :depth="1" />
         <cell-select-overlay
@@ -1050,6 +1220,24 @@
           @click-cell="onCellClicked"
         ></cell-select-overlay>
       </div>
+      <properties-panel title="ROOM">
+        <div>Color: <color-input v-model="room.color" /></div>
+      </properties-panel>
+      <properties-panel v-if="selected" :title="selected.title">
+        <template v-if="selected.hasColor">
+          <div>Color: <color-input v-model="selected.item.color" /></div>
+        </template>
+        <template v-if="selected.canBePlayer">
+          <div>
+            Player: <player-type-select v-model="selected.item.player" />
+          </div>
+        </template>
+        <template v-if="selected.canFlip">
+          <div>
+            Flip: <input type="checkbox" v-model="selected.item.flipped" />
+          </div>
+        </template>
+      </properties-panel>
     </script>
     <script>
       app.component("room-editor", {
@@ -1063,25 +1251,54 @@
             level.rooms.find((r) => r.id === props.roomId)
           );
           const onCellClicked = ([x, y]) => {
-            room.current.contents = room.current.contents.filter((c) => {
+            function removeAt() {
+              room.current.contents = room.current.contents.filter((c) => {
+                if (c.x === x && c.y === y) {
+                  return false;
+                }
+                return true;
+              });
+            }
+            if (currentTool.current === "select") {
               if (
-                (c.x === x && c.y === y) ||
-                (currentTool.current === "player" && c.type === "player")
+                selectedCell.current &&
+                selectedCell.current.x === x &&
+                selectedCell.current.y === y
               ) {
-                return false;
+                selectedCell.current = null;
+              } else {
+                selectedCell.current = [x, y];
               }
-              return true;
-            });
+            }
+            if (currentTool.current === "floor") {
+              removeAt();
+            }
             if (currentTool.current === "wall") {
+              removeAt();
               room.current.contents.push({ type: "wall", x, y });
             }
             if (currentTool.current === "box") {
-              room.current.contents.push({ type: "block", x, y });
+              removeAt();
+              room.current.contents.push({
+                type: "block",
+                x,
+                y,
+                color: { h: 40, s: 1, v: 1 },
+              });
             }
             if (currentTool.current === "player") {
-              room.current.contents.push({ type: "player", x, y });
+              removeAt();
+              removeInLevel(level, (c) => c.type === "block" && c.player === 0);
+              room.current.contents.push({
+                type: "block",
+                x,
+                y,
+                player: 0,
+                color: { h: 0, s: 1, v: 1 },
+              });
             }
             if (currentTool.current === "button") {
+              removeAt();
               room.current.contents.push({
                 type: "floor",
                 x,
@@ -1090,6 +1307,7 @@
               });
             }
             if (currentTool.current === "player-button") {
+              removeAt();
               room.current.contents.push({
                 type: "floor",
                 x,
@@ -1098,6 +1316,7 @@
               });
             }
             if (currentTool.current === "room") {
+              removeAt();
               state.roomSelect = {
                 type: "room",
                 x,
@@ -1106,14 +1325,57 @@
               };
             }
             if (currentTool.current === "clone") {
+              removeAt();
               state.roomSelect = {
                 type: "clone",
                 x,
                 y,
                 targetId: state.room,
-              }
+              };
             }
           };
+
+          const selectedCell = Vue.ref(null);
+
+          const selected = Vue.computed(() => {
+            if (selectedCell.current == null) {
+              return null;
+            }
+
+            for (const x of getContent(
+              room.current,
+              selectedCell.current[0],
+              selectedCell.current[1]
+            )) {
+              if (x.type === "room") {
+                return {
+                  title: "room",
+                  item: x,
+                  hasColor: true,
+                  canBePlayer: true,
+                  canFlip: true,
+                };
+              }
+              if (x.type === "block") {
+                return {
+                  title: "block",
+                  item: x,
+                  hasColor: true,
+                  canBePlayer: true,
+                  canFlip: false,
+                };
+              }
+              if (x.type === "wall") {
+                return {
+                  title: "wall",
+                  item: x,
+                  hasColor: false,
+                  canBePlayer: true,
+                  canFlip: false,
+                };
+              }
+            }
+          });
 
           roomContext.provide(room);
 
@@ -1121,6 +1383,8 @@
             room,
             currentTool,
             onCellClicked,
+            selectedCell, // TODO remove
+            selected,
           };
         },
       });
@@ -1271,6 +1535,21 @@
         },
       });
 
+      function removeInLevel(level, pred) {
+        level.rooms.forEach((room) => {
+          spliceIf(room.contents, (x) => pred(x));
+        });
+      }
+      function spliceIf(array, pred) {
+        let i = 0;
+        while (i < array.length) {
+          if (pred(array[i], i, array)) {
+            array.splice(i, 1);
+          } else {
+            i++;
+          }
+        }
+      }
       function getContent(room, x, y) {
         const contents = room.contents.filter((c) => c.x === x && c.y === y);
         return contents;
@@ -1376,7 +1655,7 @@
       }
       class KeyedMap extends Map {
         constructor(keyComputer, ...args) {
-          super(...args)
+          super(...args);
           this.keyComputer = keyComputer;
         }
         getByValue(value) {
@@ -1388,11 +1667,11 @@
         }
         setByValue(value) {
           const key = this.keyComputer.call(undefined, value);
-          this.set(key, value)
+          this.set(key, value);
         }
         deleteByValue(value) {
           const key = this.keyComputer.call(undefined, value);
-          this.delete(key)
+          this.delete(key);
         }
       }
       // function insetShape (points, delta) {
@@ -1418,46 +1697,48 @@
       //     return add(curr, c)
       //   })
       // }
-      function insetShape (points, delta) {
+      function insetShape(points, delta) {
         function get(i) {
-          return points[(i + points.length) % points.length]
+          return points[(i + points.length) % points.length];
         }
-        const length = a => Math.sqrt(a.x * a.x + a.y * a.y)
-        const normalize = a => {
-          const aLength = length(a)
-          return { x: a.x / aLength, y: a.y / aLength }
-        }
-        const diff = (a, b) => ({ x: a.x - b.x, y: a.y - b.y })
-        const mul = (a, k) => ({ x: a.x * k, y: a.y * k })
-        const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y })
-        const angle = (a) => Math.atan2(a.y, a.x)
-        const polar = (r, theta) => ({ x: r * Math.cos(theta), y: r * Math.sin(theta) })
+        const length = (a) => Math.sqrt(a.x * a.x + a.y * a.y);
+        const normalize = (a) => {
+          const aLength = length(a);
+          return { x: a.x / aLength, y: a.y / aLength };
+        };
+        const diff = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+        const mul = (a, k) => ({ x: a.x * k, y: a.y * k });
+        const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
+        const angle = (a) => Math.atan2(a.y, a.x);
+        const polar = (r, theta) => ({
+          x: r * Math.cos(theta),
+          y: r * Math.sin(theta),
+        });
         return points.map((curr, i) => {
-          const prev = get(i - 1)
-          const next = get(i + 1)
+          const prev = get(i - 1);
+          const next = get(i + 1);
 
-          const a = normalize(diff(prev, curr))
-          const b = normalize(diff(next, curr))
+          const a = normalize(diff(prev, curr));
+          const b = normalize(diff(next, curr));
 
-          const aAngle = angle(a)
-          const bAngle = angle(b)
-          const spanAngle = (aAngle - bAngle) / 2
-          const cAngle = (aAngle + bAngle) / 2
+          const aAngle = angle(a);
+          const bAngle = angle(b);
+          const spanAngle = (aAngle - bAngle) / 2;
+          const cAngle = (aAngle + bAngle) / 2;
           // sin(spanAngle) = delta / h
-          const h = delta / Math.sin(spanAngle)
+          const h = delta / Math.sin(spanAngle);
 
-          return add(curr, polar(h, cAngle))
-
-        })
+          return add(curr, polar(h, cAngle));
+        });
       }
       function processWalls(room) {
         function getNodeKey(node) {
-          const { x: x1, y: y1 } = node
-          const { x: x2, y: y2} = node.next
+          const { x: x1, y: y1 } = node;
+          const { x: x2, y: y2 } = node.next;
           if (x1 === x2) {
-            return `x${x1}-${Math.min(y1, y2)}-${Math.max(y1, y2)}`
+            return `x${x1}-${Math.min(y1, y2)}-${Math.max(y1, y2)}`;
           } else {
-            return `y${y1}-${Math.min(x1, x2)}-${Math.max(x1, x2)}`
+            return `y${y1}-${Math.min(x1, x2)}-${Math.max(x1, x2)}`;
           }
         }
         const walls = room.contents.filter((x) => x.type === "wall");
@@ -1480,44 +1761,54 @@
           allNodes.add(p4);
 
           for (const p of [p1, p2, p3, p4]) {
-            let t
-            if (t = nodeMap.getByValue(p)) {
-              nodeMap.deleteByValue(t)
-              ;[p.next, t.next] = [t.next, p.next]
+            let t;
+            if ((t = nodeMap.getByValue(p))) {
+              nodeMap.deleteByValue(t);
+              [p.next, t.next] = [t.next, p.next];
             } else {
-              nodeMap.setByValue(p)
+              nodeMap.setByValue(p);
             }
           }
         });
 
-        const pointCycles = []
+        const pointCycles = [];
         while (allNodes.size > 0) {
-          const p = allNodes.values().next().value
-          const cycle = [p]
-          let pp = p
-          allNodes.delete(p)
+          const p = allNodes.values().next().value;
+          const cycle = [p];
+          let pp = p;
+          allNodes.delete(p);
           while (pp.next !== p) {
-            pp = pp.next
-            allNodes.delete(pp)
-            cycle.push(pp)
+            pp = pp.next;
+            allNodes.delete(pp);
+            cycle.push(pp);
           }
-          const cycleNoDups = (cycle.filter((x, i) => {
-            return !pointEqual(x, cycle[(i + 1) % cycle.length])
-          }))
+          const cycleNoDups = cycle.filter((x, i) => {
+            return !pointEqual(x, cycle[(i + 1) % cycle.length]);
+          });
           if (cycleNoDups.length > 0) {
-            pointCycles.push(cycleNoDups)
+            pointCycles.push(cycleNoDups);
           }
         }
         return pointCycles;
       }
       function levelToFile(level) {
-        function b (value) {
-          return value ? '1' : '0'
+        function b(value) {
+          return value ? "1" : "0";
+        }
+        function color(value) {
+          return `${value.h / 360} ${value.s} ${value.v}`;
+        }
+        function player(value) {
+          return `${b(typeof value === "number")} ${b(value != null)} ${
+            typeof value === "number" ? value : "0"
+          }`;
         }
         const file = new Writer();
         file.writeLine("version 4");
         file.writeLine("#");
-        file.writeLine(`Block -1 -1 0 1 ${level.rooms.length} 0 0 0 1 0 0 0 0 0 1 0`);
+        file.writeLine(
+          `Block -1 -1 0 1 ${level.rooms.length} 0 0 0 1 0 0 0 0 0 1 0`
+        );
         file.indented(() => {
           const idToRoom = new Map();
           const roomToId = new Map();
@@ -1531,34 +1822,31 @@
           level.rooms.forEach((room, index) => {
             const roomId = roomToId.get(room);
             file.writeLine(
-              `Block 0 ${index} ${roomId} ${room.width} ${room.height} ${
-                room.color.h / 360
-              } ${room.color.s} ${room.color.v} 1 0 0 0 0 0 1 0`
+              `Block 0 ${index} ${roomId} ${room.width} ${room.height} ${color(
+                room.color
+              )} 1 0 0 0 0 0 1 0`
             );
             file.indented(() => {
               room.contents.forEach((x) => {
                 if (x.type === "wall") {
-                  file.writeLine(`Wall ${x.x} ${x.y} 0 0 0`);
+                  file.writeLine(`Wall ${x.x} ${x.y} ${player(x.player)}`);
                 }
                 if (x.type === "floor") {
                   file.writeLine(`Floor ${x.x} ${x.y} ${x.buttonType}`);
                 }
                 if (x.type === "block") {
                   file.writeLine(
-                    `Block ${x.x} ${
-                      x.y
-                    } ${currentRoomId++} 1 1 0.4 1 1 1 1 0 0 0 0 0 0`
-                  );
-                }
-                if (x.type === "player") {
-                  file.writeLine(
-                    `Block ${x.x} ${x.y} ${playerRoomId} 1 1 0 1 1 1 1 1 0 0 0 0 0`
+                    `Block ${x.x} ${x.y} ${currentRoomId++} 1 1 ${color(
+                      x.color
+                    )} 1 1 ${player(x.player)} ${b(x.flipped)} 0 0`
                   );
                 }
                 if (x.type === "room") {
                   const targetRoomId = roomToId.get(idToRoom.get(x.id));
                   file.writeLine(
-                    `Ref ${x.x} ${x.y} ${targetRoomId} ${b(!(x.isClone ?? false))} 0 0 0 0 0 0 0 0 0 0 0`
+                    `Ref ${x.x} ${x.y} ${targetRoomId} ${b(
+                      !(x.isClone ?? false)
+                    )} 0 0 0 0 0 ${player(x.player)} ${b(x.flipped)} 0 0`
                   );
                 }
               });
