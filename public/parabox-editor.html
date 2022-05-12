@@ -837,6 +837,9 @@
                 if (item.isClone ?? false) {
                   result.push({ x, y, box: { color: "#FFFA" } });
                 }
+                if (item.infEnterId != null) {
+                  result.push({ x, y, text: "ε" });
+                }
               }
               if (item.type === "inf-exit") {
                 result.push({ x, y, text: "∞", roomId: item.refId });
@@ -1269,6 +1272,26 @@
             Flip: <input type="checkbox" v-model="selected.item.flipped" />
           </div>
         </template>
+        <template v-if="selected.canBeInfEnter">
+          <div>
+            Infinite Enter:
+            <div class="tool-group">
+              <button
+                class="tool-button"
+                @click="selectInfEnterRoom(selected.item)"
+              >
+                Select
+              </button>
+              <button
+                v-if="selected.item.infEnterId != null"
+                class="tool-button"
+                @click="selected.item.infEnterId = null"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </template>
         <template v-if="selected.hasInfiniteOrder">
           <div>
             Order:
@@ -1407,11 +1430,13 @@
             )) {
               if (x.type === "room") {
                 return {
-                  title: "room",
+                  title: "room ref",
                   item: x,
-                  hasColor: true,
+                  hasColor: false,
                   canBePlayer: true,
                   canFlip: true,
+                  canBeInfEnter: true,
+                  hasInfiniteOrder: x.infEnterId != null,
                 };
               }
               if (x.type === "block") {
@@ -1421,6 +1446,7 @@
                   hasColor: true,
                   canBePlayer: true,
                   canFlip: false,
+                  canBeInfEnter: false,
                 };
               }
               if (x.type === "wall") {
@@ -1430,6 +1456,7 @@
                   hasColor: false,
                   canBePlayer: true,
                   canFlip: false,
+                  canBeInfEnter: false,
                 };
               }
               if (x.type === "inf-exit") {
@@ -1438,13 +1465,19 @@
                   item: x,
                   hasColor: false,
                   canBePlayer: true,
-                  // TODO see if you actually can flip this one
                   canFlip: true,
                   hasInfiniteOrder: true,
                 };
               }
             }
           });
+
+          const selectInfEnterRoom = (target) => {
+            state.roomSelect = {
+              type: "inf-enter",
+              target,
+            };
+          };
 
           roomContext.provide(room);
 
@@ -1454,6 +1487,7 @@
             onCellClicked,
             selectedCell, // TODO remove
             selected,
+            selectInfEnterRoom,
           };
         },
       });
@@ -1574,6 +1608,9 @@
                   order: 0,
                   refId: selectedRoomId,
                 });
+              } else if (type === "inf-enter") {
+                state.roomSelect.target.infEnterId = selectedRoomId;
+                state.roomSelect.target.order = 0;
               } else {
                 // TODO if not clone, remove any other instances of this room
                 targetRoom.contents.push({
@@ -1886,58 +1923,60 @@
         const file = new Writer();
         file.writeLine("version 4");
         file.writeLine("#");
-        file.writeLine(
-          `Block -1 -1 0 1 ${level.rooms.length} 0 0 0 1 0 0 0 0 0 1 0`
-        );
-        file.indented(() => {
-          const idToRoom = new Map();
-          const roomToId = new Map();
-          let currentRoomId = 1;
-          level.rooms.forEach((x) => {
-            idToRoom.set(x.id, x);
-            roomToId.set(x, currentRoomId++);
-          });
-          playerRoomId = currentRoomId++;
+        function infEnter(room) {
+          return room.infEnterId != null
+            ? `1 ${room.order} ${roomToId.get(idToRoom.get(room.infEnterId))}`
+            : `0 0 0`;
+        }
+        const idToRoom = new Map();
+        const roomToId = new Map();
+        let currentRoomId = 1;
+        level.rooms.forEach((x) => {
+          idToRoom.set(x.id, x);
+          roomToId.set(x, currentRoomId++);
+        });
+        playerRoomId = currentRoomId++;
 
-          level.rooms.forEach((room, index) => {
-            const roomId = roomToId.get(room);
-            file.writeLine(
-              `Block 0 ${index} ${roomId} ${room.width} ${room.height} ${color(
-                room.color
-              )} 1 0 0 0 0 0 1 0`
-            );
-            file.indented(() => {
-              room.contents.forEach((x) => {
-                if (x.type === "wall") {
-                  file.writeLine(`Wall ${x.x} ${x.y} ${player(x.player)}`);
-                }
-                if (x.type === "floor") {
-                  file.writeLine(`Floor ${x.x} ${x.y} ${x.buttonType}`);
-                }
-                if (x.type === "block") {
-                  file.writeLine(
-                    `Block ${x.x} ${x.y} ${currentRoomId++} 1 1 ${color(
-                      x.color
-                    )} 1 1 ${player(x.player)} ${b(x.flipped)} 0 0`
-                  );
-                }
-                if (x.type === "room") {
-                  const targetRoomId = roomToId.get(idToRoom.get(x.id));
-                  file.writeLine(
-                    `Ref ${x.x} ${x.y} ${targetRoomId} ${b(
-                      !(x.isClone ?? false)
-                    )} 0 0 0 0 0 ${player(x.player)} ${b(x.flipped)} 0 0`
-                  );
-                }
-                if (x.type === "inf-exit") {
-                  const targetRoomId = roomToId.get(idToRoom.get(x.refId));
-                  file.writeLine(
-                    `Ref ${x.x} ${x.y} ${targetRoomId} 0 1 ${
-                      x.order
-                    } 0 0 0 ${player(x.player)} ${b(x.flipped)} 0 0`
-                  );
-                }
-              });
+        level.rooms.forEach((room, index) => {
+          const roomId = roomToId.get(room);
+          file.writeLine(
+            `Block 0 ${index} ${roomId} ${room.width} ${room.height} ${color(
+              room.color
+            )} 1 0 0 0 0 0 1 0`
+          );
+          file.indented(() => {
+            room.contents.forEach((x) => {
+              if (x.type === "wall") {
+                file.writeLine(`Wall ${x.x} ${x.y} ${player(x.player)}`);
+              }
+              if (x.type === "floor") {
+                file.writeLine(`Floor ${x.x} ${x.y} ${x.buttonType}`);
+              }
+              if (x.type === "block") {
+                file.writeLine(
+                  `Block ${x.x} ${x.y} ${currentRoomId++} 1 1 ${color(
+                    x.color
+                  )} 1 1 ${player(x.player)} ${b(x.flipped)} 0 0`
+                );
+              }
+              if (x.type === "room") {
+                const targetRoomId = roomToId.get(idToRoom.get(x.id));
+                file.writeLine(
+                  `Ref ${x.x} ${x.y} ${targetRoomId} ${b(
+                    !(x.isClone ?? false)
+                  )} 0 0 ${infEnter(x)} 0 ${player(x.player)} ${b(
+                    x.flipped
+                  )} 0 0`
+                );
+              }
+              if (x.type === "inf-exit") {
+                const targetRoomId = roomToId.get(idToRoom.get(x.refId));
+                file.writeLine(
+                  `Ref ${x.x} ${x.y} ${targetRoomId} 0 1 ${
+                    x.order
+                  } 0 0 0 ${player(x.player)} ${b(x.flipped)} 0 0`
+                );
+              }
             });
           });
         });
