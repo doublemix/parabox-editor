@@ -1257,6 +1257,9 @@
       </div>
       <properties-panel title="ROOM">
         <div>Color: <color-input v-model="room.color" /></div>
+        <div>
+          Float In Space: <input type="checkbox" v-model="room.floatInSpace" />
+        </div>
       </properties-panel>
       <properties-panel v-if="selected" :title="selected.title">
         <template v-if="selected.hasColor">
@@ -1280,15 +1283,15 @@
                 class="tool-button"
                 @click="selectInfEnterRoom(selected.item)"
               >
-                Select
+              Select
               </button>
               <button
-                v-if="selected.item.infEnterId != null"
-                class="tool-button"
-                @click="selected.item.infEnterId = null"
+              v-if="selected.item.infEnterId != null"
+              class="tool-button"
+              @click="selected.item.infEnterId = null"
               >
-                Clear
-              </button>
+              Clear
+            </button>
             </div>
           </div>
         </template>
@@ -1297,18 +1300,28 @@
             Order:
             <div class="tool-group">
               <button
-                class="tool-button"
-                @click="selected.item.order = Math.max(selected.item.order - 1, 0)"
+              class="tool-button"
+              @click="selected.item.order = Math.max(selected.item.order - 1, 0)"
               >
-                -
-              </button>
-              <span class="tool-button">{{selected.item.order + 1}}</span>
-              <button class="tool-button" @click="selected.item.order++">
-                +
-              </button>
-            </div>
+              -
+            </button>
+            <span class="tool-button">{{selected.item.order + 1}}</span>
+            <button class="tool-button" @click="selected.item.order++">
+              +
+            </button>
           </div>
+        </div>
         </template>
+      </properties-panel>
+      <properties-panel title="level">
+        <div>Extrude: <input type="checkbox" v-model="level.extrude"/></div>
+        <div>Inner Push: <input type="checkbox" v-model="level.innerPush" /></div>
+        <div>Style: <select v-model="level.style">
+          <option value="normal">Normal</option>
+          <option value="tui">TUI</option>
+          <option value="grid">Grid</option>
+          <option value="oldstyle">Gallery</option>
+        </select></div>
       </properties-panel>
     </script>
     <script>
@@ -1483,9 +1496,9 @@
 
           return {
             room,
+            level,
             currentTool,
             onCellClicked,
-            selectedCell, // TODO remove
             selected,
             selectInfEnterRoom,
           };
@@ -1570,6 +1583,7 @@
           width: 5,
           height: 5,
           color: { h: 216, s: 0.8, v: 1.0 },
+          floatInSpace: false,
           contents: [],
         };
       }
@@ -1577,7 +1591,10 @@
         template: "#main-app",
         setup() {
           const level = Vue.reactive({
-            title: "mitch",
+            title: "An Interesting Level",
+            extrude: false,
+            innerPush: false,
+            style: "normal",
             rooms: [defaultRoom(0)],
           });
 
@@ -1922,6 +1939,15 @@
         }
         const file = new Writer();
         file.writeLine("version 4");
+        if (level.extrude) {
+          file.writeLine("shed 1");
+        }
+        if (level.innerPush) {
+          file.writeLine("inner_push 1");
+        }
+        if (level.style !== "normal") {
+          file.writeLine("draw_style " + level.style)
+        }
         file.writeLine("#");
         function infEnter(room) {
           return room.infEnterId != null
@@ -1940,9 +1966,9 @@
         level.rooms.forEach((room, index) => {
           const roomId = roomToId.get(room);
           file.writeLine(
-            `Block 0 ${index} ${roomId} ${room.width} ${room.height} ${color(
+            `Block -1 -1 ${roomId} ${room.width} ${room.height} ${color(
               room.color
-            )} 1 0 0 0 0 0 1 0`
+            )} 1 0 0 0 0 0 ${b(room.floatInSpace)} 0`
           );
           file.indented(() => {
             room.contents.forEach((x) => {
