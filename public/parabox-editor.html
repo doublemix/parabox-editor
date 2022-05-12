@@ -37,7 +37,8 @@
 
       /* Re-flip all <text> element descendants to their original side up. */
       svg.cartesian > g text {
-        transform: scaleY(-1);
+        /* TODO fix all this flip */
+        /* transform: scaleY(-1); */
       }
     </style>
     <script src="https://unpkg.com/vue@next"></script>
@@ -665,19 +666,21 @@
               :y="y"
               width="0.99"
               height="0.99"
-              stroke="#666"
-              fill="#aaa"
+              stroke="#333"
+              :fill="roomFloorColor"
               stroke-width="0.01"
             ></rect>
           </template>
           <!-- walls -->
           <path
             :d="wallPath"
-            fill="#ddd"
+            :fill="roomWallColor"
             stroke-width="0.1"
             stroke="#666"
           ></path>
-          <template v-for="{ x, y, box, button, eyes, roomId } of elements">
+          <template
+            v-for="{ x, y, box, button, eyes, roomId, text } of elements"
+          >
             <g :transform="`translate(${x}, ${y})`">
               <rect
                 v-if="box"
@@ -689,7 +692,7 @@
                 stroke="black"
                 :stroke-width="0.05"
               ></rect>
-              <template v-if="roomId != null">
+              <template v-if="roomId != null && depth > 0">
                 <g transform="scale(1, -1) translate(0, -1)">
                   <room-view
                     :room-id="roomId"
@@ -719,6 +722,18 @@
                   <circle cx="0.7" cy="0.6" r="0.1"></circle>
                 </g>
               </template>
+              <template v-if="text">
+                <text
+                  x="0.5"
+                  y="0.5"
+                  fill="black"
+                  font-size="0.7"
+                  text-anchor="middle"
+                  alignment-baseline="middle"
+                >
+                  {{text}}
+                </text>
+              </template>
             </g>
           </template>
         </g>
@@ -729,7 +744,10 @@
         template: "#room-view",
         props: {
           roomId: [String, Number],
-          depth: Number,
+          depth: {
+            type: Number,
+            default: 0,
+          },
           size: String,
           width: {
             type: String,
@@ -820,6 +838,9 @@
                   result.push({ x, y, box: { color: "#FFFA" } });
                 }
               }
+              if (item.type === "inf-exit") {
+                result.push({ x, y, text: "∞", roomId: item.refId });
+              }
             });
             return result;
           });
@@ -842,6 +863,14 @@
             return path;
           });
 
+          const roomFloorColor = Vue.computed(() => {
+            return tinycolor(room.current.color).desaturate(50).toHexString();
+          });
+
+          const roomWallColor = Vue.computed(() => {
+            return tinycolor(room.current.color).toHexString();
+          });
+
           return {
             positions,
             gridStyles,
@@ -849,6 +878,8 @@
             getContent,
             wallPath,
             elements,
+            roomFloorColor,
+            roomWallColor,
             viewBox: Vue.computed(
               () =>
                 `0 ${-room.current.height} ${room.current.width} ${
@@ -1080,6 +1111,7 @@
         makeTool("player-button", "Goal"),
         makeTool("room", "Room"),
         makeTool("clone", "Clone"),
+        makeTool("inf-exit", "InfExit"),
       ];
       app.component("tool-selector", {
         template: "#tool-selector",
@@ -1237,6 +1269,23 @@
             Flip: <input type="checkbox" v-model="selected.item.flipped" />
           </div>
         </template>
+        <template v-if="selected.hasInfiniteOrder">
+          <div>
+            Order:
+            <div class="tool-group">
+              <button
+                class="tool-button"
+                @click="selected.item.order = Math.max(selected.item.order - 1, 0)"
+              >
+                -
+              </button>
+              <span class="tool-button">{{selected.item.order + 1}}</span>
+              <button class="tool-button" @click="selected.item.order++">
+                +
+              </button>
+            </div>
+          </div>
+        </template>
       </properties-panel>
     </script>
     <script>
@@ -1333,6 +1382,15 @@
                 targetId: state.room,
               };
             }
+            if (currentTool.current === "inf-exit") {
+              removeAt();
+              state.roomSelect = {
+                type: "inf-exit",
+                x,
+                y,
+                targetId: state.room,
+              };
+            }
           };
 
           const selectedCell = Vue.ref(null);
@@ -1372,6 +1430,17 @@
                   hasColor: false,
                   canBePlayer: true,
                   canFlip: false,
+                };
+              }
+              if (x.type === "inf-exit") {
+                return {
+                  title: "infinite exit",
+                  item: x,
+                  hasColor: false,
+                  canBePlayer: true,
+                  // TODO see if you actually can flip this one
+                  canFlip: true,
+                  hasInfiniteOrder: true,
                 };
               }
             }
@@ -1496,14 +1565,25 @@
                 selectedRoomId = newRoom.id;
               }
               const targetRoom = level.rooms.find((r) => r.id === targetRoomId);
-              // TODO if not clone, remove any other instances of this room
-              targetRoom.contents.push({
-                type: "room",
-                x,
-                y,
-                id: selectedRoomId,
-                isClone: type === "clone",
-              });
+              if (type === "inf-exit") {
+                targetRoom.contents.push({
+                  type: "inf-exit",
+                  x,
+                  y,
+                  // TODO automatic order
+                  order: 0,
+                  refId: selectedRoomId,
+                });
+              } else {
+                // TODO if not clone, remove any other instances of this room
+                targetRoom.contents.push({
+                  type: "room",
+                  x,
+                  y,
+                  id: selectedRoomId,
+                  isClone: type === "clone",
+                });
+              }
               state.roomSelect = null;
             }
           };
@@ -1847,6 +1927,14 @@
                     `Ref ${x.x} ${x.y} ${targetRoomId} ${b(
                       !(x.isClone ?? false)
                     )} 0 0 0 0 0 ${player(x.player)} ${b(x.flipped)} 0 0`
+                  );
+                }
+                if (x.type === "inf-exit") {
+                  const targetRoomId = roomToId.get(idToRoom.get(x.refId));
+                  file.writeLine(
+                    `Ref ${x.x} ${x.y} ${targetRoomId} 0 1 ${
+                      x.order
+                    } 0 0 0 ${player(x.player)} ${b(x.flipped)} 0 0`
                   );
                 }
               });
