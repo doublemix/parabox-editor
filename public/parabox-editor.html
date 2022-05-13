@@ -1258,8 +1258,9 @@
       <properties-panel title="ROOM">
         <div>Color: <color-input v-model="room.color" /></div>
         <div>
-          Float In Space: <input type="checkbox" v-model="room.floatInSpace" />
+          Void Plane: <input type="checkbox" v-model="room.isVoidPlane" />
         </div>
+        <div>Zoom Factor: <input v-model="room.zoomFactor" type="range" min="0.1" max="1.0" step="0.01" /></div>
       </properties-panel>
       <properties-panel v-if="selected" :title="selected.title">
         <template v-if="selected.hasColor">
@@ -1583,7 +1584,8 @@
           width: 5,
           height: 5,
           color: { h: 216, s: 0.8, v: 1.0 },
-          floatInSpace: false,
+          isVoidPlane: false,
+          zoomFactor: 1.0,
           contents: [],
         };
       }
@@ -1968,9 +1970,13 @@
           file.writeLine(
             `Block -1 -1 ${roomId} ${room.width} ${room.height} ${color(
               room.color
-            )} 1 0 0 0 0 0 ${b(room.floatInSpace)} 0`
+            )} ${room.zoomFactor} 0 0 0 0 0 1 0`
           );
           file.indented(() => {
+            // 
+            if (room.isVoidPlane) {
+              file.writeLine(`Ref -1 -1 ${roomId} 1 0 0 0 0 0 0 0 0 0 1 0`)
+            }
             room.contents.forEach((x) => {
               if (x.type === "wall") {
                 file.writeLine(`Wall ${x.x} ${x.y} ${player(x.player)}`);
