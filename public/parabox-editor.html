@@ -1261,6 +1261,7 @@
           Void Plane: <input type="checkbox" v-model="room.isVoidPlane" />
         </div>
         <div>Zoom Factor: <input v-model="room.zoomFactor" type="range" min="0.1" max="1.0" step="0.01" /></div>
+        <div>Special Effect: <input v-model="room.specialEffect" type="number" min="0" /></div>
       </properties-panel>
       <properties-panel v-if="selected" :title="selected.title">
         <template v-if="selected.hasColor">
@@ -1323,6 +1324,7 @@
           <option value="grid">Grid</option>
           <option value="oldstyle">Gallery</option>
         </select></div>
+        <div>Custom Level Palette: <input type="number" v-model="level.customLevelPalette" /></div>
       </properties-panel>
     </script>
     <script>
@@ -1586,6 +1588,7 @@
           color: { h: 216, s: 0.8, v: 1.0 },
           isVoidPlane: false,
           zoomFactor: 1.0,
+          specialEffect: 0,
           contents: [],
         };
       }
@@ -1597,6 +1600,7 @@
             extrude: false,
             innerPush: false,
             style: "normal",
+            customLevelPalette: -1,
             rooms: [defaultRoom(0)],
           });
 
@@ -1950,6 +1954,9 @@
         if (level.style !== "normal") {
           file.writeLine("draw_style " + level.style)
         }
+        if (level.customLevelPalette >= 0) {
+          file.writeLine(`custom_level_palette ${level.customLevelPalette}`)
+        }
         file.writeLine("#");
         function infEnter(room) {
           return room.infEnterId != null
@@ -1970,7 +1977,7 @@
           file.writeLine(
             `Block -1 -1 ${roomId} ${room.width} ${room.height} ${color(
               room.color
-            )} ${room.zoomFactor} 0 0 0 0 0 1 0`
+            )} ${room.zoomFactor} 0 0 0 0 0 1 ${room.specialEffect}`
           );
           file.indented(() => {
             // 
