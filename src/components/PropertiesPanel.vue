@@ -7,6 +7,7 @@ defineProps<Props>();
 
 <style scoped>
 .properties-panel {
+  background: white;
   border: 1px solid black;
   padding: 10px;
   margin: 10px 0;

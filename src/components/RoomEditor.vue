@@ -210,16 +210,21 @@ roomContext.provide(room);
     :current-tool="currentTool"
     @select-tool="currentTool = $event"
   />
-  <div style="width: 520px; height: 520px; position: relative">
-    <RoomView :room-id="roomId" :depth="1" />
-    <CellSelectOverlay
-      :width="room.width"
-      :height="room.height"
-      @click-cell="onCellClicked"
-    />
+  <div class="room-view-container">
+    <div style="width: 520px; height: 520px; position: relative">
+      <RoomView :room-id="roomId" :depth="1" />
+      <CellSelectOverlay
+        :width="room.width"
+        :height="room.height"
+        @click-cell="onCellClicked"
+      />
+    </div>
   </div>
   <PropertiesPanel title="ROOM">
-    <div>Color: <ColorInput v-model="room.color" /></div>
+    <div>
+      Color:
+      <ColorInput v-model="room.color" />
+    </div>
     <div>Void Plane: <input type="checkbox" v-model="room.isVoidPlane" /></div>
     <div>
       Zoom Factor:
@@ -238,10 +243,16 @@ roomContext.provide(room);
   </PropertiesPanel>
   <PropertiesPanel v-if="selected" :title="selected.title">
     <template v-if="selected.hasColor">
-      <div>Color: <ColorInput v-model="selected.item.color" /></div>
+      <div>
+        Color:
+        <ColorInput v-model="selected.item.color" />
+      </div>
     </template>
     <template v-if="selected.canBePlayer">
-      <div>Player: <PlayerTypeSelect v-model="selected.item.player" /></div>
+      <div>
+        Player:
+        <PlayerTypeSelect v-model="selected.item.player" />
+      </div>
     </template>
     <template v-if="selected.canFlip">
       <div>Flip: <input type="checkbox" v-model="selected.item.flipped" /></div>
@@ -295,3 +306,12 @@ roomContext.provide(room);
     </div>
   </PropertiesPanel>
 </template>
+
+<style scoped>
+.room-view-container {
+  margin: 20px 0;
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: space-around;
+}
+</style>

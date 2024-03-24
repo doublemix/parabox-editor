@@ -6,6 +6,7 @@ import { expandRoom } from "@/utils/levels";
 import ToolGroup from "./ToolGroup.vue";
 import ToolSelectButton from "./ToolSelectButton.vue";
 import ToolButton from "./ToolButton.vue";
+import { useMagicKeys } from "@vueuse/core";
 
 const makeTool = (toolId: ToolType, name: string): Tool => ({ toolId, name });
 const tools = [
@@ -38,19 +39,32 @@ const changeRoom = (delta: number) => {
     (roomIndex + level.rooms.length + delta) % level.rooms.length;
   state.room = level.rooms[newRoomIndex].id;
 };
+
+const { a: left, w: up, s: down, d: right } = useMagicKeys();
+const doExpandRoom = (size: number) => {
+  const none = !left.value && !right.value && !up.value && !down.value;
+  const doLeft = none || left.value;
+  const doRight = none || right.value;
+  const doUp = none || up.value;
+  const doDown = none || down.value;
+  const get = (condition: boolean) => (condition ? size : 0);
+  expandRoom(room.value, get(doUp), get(doRight), get(doDown), get(doLeft));
+};
 const bigger = () => {
-  expandRoom(room.value, 1, 1, 1, 1);
+  doExpandRoom(1);
 };
 const smaller = () => {
-  expandRoom(room.value, -1, -1, -1, -1);
+  doExpandRoom(-1);
 };
 </script>
 
 <template>
   <div>
+    {{ left ? "left" : "not" }}
     <ToolGroup>
       <ToolSelectButton
         v-for="tool of tools"
+        :key="tool.toolId"
         :tool="tool"
         :current-tool="currentTool"
         @select-tool="$emit('select-tool', $event)"

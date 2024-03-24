@@ -15,9 +15,9 @@ defineEmits<{
 }>();
 
 const positions = Vue.computed(() =>
-  pipe(range(props.width - 1, -1, -1), collect).flatMap((y) =>
+  pipe(range(props.height - 1, -1, -1), collect).flatMap((y) =>
     pipe(
-      range(props.height),
+      range(props.width),
       pipe.map((x) => [x, y] as [number, number]),
       collect
     )

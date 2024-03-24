@@ -174,7 +174,7 @@ export function expandRoom(
   expandRight: number,
   expandBottom: number,
   expandLeft: number,
-  expandWalls: boolean = true
+  expandWalls = true
 ) {
   const newWidth = room.width + expandLeft + expandRight;
   const newHeight = room.height + expandTop + expandBottom;
@@ -185,7 +185,7 @@ export function expandRoom(
     for (const y of range(0, newHeight)) {
       let oldX = x - expandLeft;
       let oldY = y - expandBottom;
-      let outside =
+      const outside =
         oldX < 0 || oldX >= room.width || oldY < 0 || oldY >= room.height;
       oldX = clamp(oldX, 0, room.width - 1);
       oldY = clamp(oldY, 0, room.height - 1);
