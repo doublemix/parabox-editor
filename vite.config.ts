@@ -10,5 +10,6 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
-  }
+  },
+  base: process.env.GITHUB_PAGES === "true" ? "/parabox-editor/" : undefined,
 })
