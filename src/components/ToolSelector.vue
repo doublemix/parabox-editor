@@ -60,7 +60,6 @@ const smaller = () => {
 
 <template>
   <div>
-    {{ left ? "left" : "not" }}
     <ToolGroup>
       <ToolSelectButton
         v-for="tool of tools"
