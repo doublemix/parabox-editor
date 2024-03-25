@@ -109,7 +109,7 @@ const elements = Vue.computed<Element[]>(() => {
       }
     }
     if (item.type === "inf-exit") {
-      result.push({ x, y, text: "∞", roomId: item.refId });
+      result.push({ x, y, text: "∞", roomId: item.refId, eyes: getEyes(item) });
     }
   });
   return result;
