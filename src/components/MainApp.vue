@@ -19,7 +19,27 @@ const state = Vue.reactive<State>({
   nextRoomId: 1,
 }) as State;
 const levelAsText = Vue.computed(() => levelToFile(level));
-const showLevel = Vue.ref(true);
+const showLevel = Vue.ref(false);
+
+const saveLevel = async () => {
+  const opts = {
+    id: "parabox-editor",
+    types: [
+      {
+        description: "Text file",
+        accept: { "text/plain": [".txt"] },
+      },
+    ],
+  };
+
+  const blob = new Blob([levelAsText.value]);
+
+  const handle = await (window as any).showSaveFilePicker(opts);
+  // Write the blob to the file.
+  const writable = await handle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+};
 
 const handleRoomSelect = (maybeSelectedRoomId: Id | null) => {
   if (state.roomSelect != null) {
@@ -86,6 +106,7 @@ stateContext.provide(state);
   <div class="container">
     <div class="full-column mt mb position-root">
       <RoomEditor v-if="state.room !== null" :room-id="state.room" />
+      <button @click="saveLevel" :style="{ margin: '10px 0' }">Save</button>
       <button @click="showLevel = !showLevel">
         Toggle Display Level Code!
       </button>
