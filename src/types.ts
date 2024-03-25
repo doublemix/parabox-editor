@@ -1,4 +1,4 @@
-import type { Id, RoomRef } from "@/utils/levels";
+import type { Id, RoomRef, VoidPlane } from "@/utils/levels";
 
 export type ToolType =
   | "select"
@@ -25,6 +25,10 @@ export type State = {
 };
 
 export type RoomSelectState =
+  | {
+      type: "void-plane";
+      target: VoidPlane;
+    }
   | {
       type: "inf-enter";
       target: RoomRef;

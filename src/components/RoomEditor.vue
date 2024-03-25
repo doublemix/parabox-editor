@@ -4,7 +4,7 @@ import ColorInput from "vue-color-input";
 
 import { _throw } from "@/utils";
 import type { Room, RoomRef, Id } from "@/utils/levels";
-import { removeInLevel, getContent } from "@/utils/levels";
+import { removeInLevel, getContent, type VoidPlane } from "@/utils/levels";
 import { stateContext, levelContext, roomContext } from "@/utils/context";
 import type { ToolType } from "@/types";
 
@@ -202,6 +202,24 @@ const selectInfEnterRoom = (target: RoomRef) => {
   };
 };
 
+const selectInfEnterRoomForVoidPlane = (target: VoidPlane) => {
+  state.roomSelect = {
+    type: "void-plane",
+    target,
+  };
+};
+
+const setIsVoidPlane = (event: Event) => {
+  if (event.target instanceof HTMLInputElement && event.target.checked) {
+    room.value.voidPlane = {
+      infEnterId: null,
+      order: 0,
+    };
+  } else {
+    room.value.voidPlane = null;
+  }
+};
+
 roomContext.provide(room);
 </script>
 
@@ -225,7 +243,14 @@ roomContext.provide(room);
       Color:
       <ColorInput v-model="room.color" />
     </div>
-    <div>Void Plane: <input type="checkbox" v-model="room.isVoidPlane" /></div>
+    <div>
+      Void Plane:
+      <input
+        type="checkbox"
+        :checked="room.voidPlane != null"
+        @change="setIsVoidPlane"
+      />
+    </div>
     <div>
       Zoom Factor:
       <input
@@ -240,6 +265,38 @@ roomContext.provide(room);
       Special Effect:
       <input v-model="room.specialEffect" type="number" min="0" />
     </div>
+  </PropertiesPanel>
+  <PropertiesPanel v-if="room.voidPlane != null" title="VOID PLANE">
+    <div>
+      Infinite Enter:
+      <ToolGroup>
+        <ToolButton @click="selectInfEnterRoomForVoidPlane(room.voidPlane)">
+          Select
+        </ToolButton>
+        <ToolButton
+          v-if="room.voidPlane.infEnterId != null"
+          @click="room.voidPlane.infEnterId = null"
+        >
+          Clear
+        </ToolButton>
+      </ToolGroup>
+    </div>
+    <template v-if="room.voidPlane.infEnterId != null">
+      <div>
+        Order:
+        <ToolGroup>
+          <ToolButton
+            @click="
+              room.voidPlane.order = Math.max(room.voidPlane.order - 1, 0)
+            "
+          >
+            -
+          </ToolButton>
+          <ToolButton>{{ room.voidPlane.order + 1 }}</ToolButton>
+          <ToolButton @click="room.voidPlane.order++">+</ToolButton>
+        </ToolGroup>
+      </div>
+    </template>
   </PropertiesPanel>
   <PropertiesPanel v-if="selected" :title="selected.title">
     <template v-if="selected.hasColor">

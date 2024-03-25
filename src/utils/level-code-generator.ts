@@ -1,4 +1,4 @@
-import type { Level, Color, PlayerOrderValue, RoomRef } from "@/utils/levels";
+import type { Level, Color, PlayerOrderValue, RoomRef, Id } from "@/utils/levels";
 
 class Writer {
   output: string;
@@ -82,9 +82,9 @@ export function levelToFile(level: Level) {
     file.writeLine(`custom_level_palette ${level.customLevelPalette}`);
   }
   file.writeLine("#");
-  function infEnter(room: RoomRef) {
-    return room.infEnterId != null
-      ? `1 ${room.order} ${roomToId.get(idToRoom.get(room.infEnterId))}`
+  function infEnter(infEnterId: Id | null, order: number) {
+    return infEnterId != null
+      ? `1 ${order} ${roomToId.get(idToRoom.get(infEnterId))}`
       : `0 0 0`;
   }
   const idToRoom = new Map();
@@ -104,8 +104,9 @@ export function levelToFile(level: Level) {
     );
     file.indented(() => {
       //
-      if (room.isVoidPlane) {
-        file.writeLine(`Ref -1 -1 ${roomId} 1 0 0 0 0 0 0 0 0 0 1 0`);
+      if (room.voidPlane !== null) {
+        const { infEnterId, order } = room.voidPlane
+        file.writeLine(`Ref -1 -1 ${roomId} 1 0 0 ${infEnter(infEnterId, order)} 0 0 0 0 1 0`);
       }
       room.contents.forEach((x) => {
         if (x.type === "wall") {
@@ -126,7 +127,7 @@ export function levelToFile(level: Level) {
           file.writeLine(
             `Ref ${x.x} ${x.y} ${targetRoomId} ${b(
               !(x.isClone ?? false)
-            )} 0 0 ${infEnter(x)} ${player(x.player)} ${b(x.flipped)} 0 0`
+            )} 0 0 ${infEnter(x.infEnterId, x.order)} ${player(x.player)} ${b(x.flipped)} 0 0`
           );
         }
         if (x.type === "inf-exit") {

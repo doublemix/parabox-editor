@@ -69,6 +69,9 @@ const handleRoomSelect = (maybeSelectedRoomId: Id | null) => {
     } else if (state.roomSelect.type === "inf-enter") {
       state.roomSelect.target.infEnterId = selectedRoomId;
       state.roomSelect.target.order = 0;
+    } else if (state.roomSelect.type === "void-plane") {
+      state.roomSelect.target.infEnterId = selectedRoomId;
+      state.roomSelect.target.order = 0;
     } else {
       const { x, y, targetId: targetRoomId } = state.roomSelect;
       const targetRoom =

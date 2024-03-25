@@ -18,12 +18,16 @@ export type Color = {
   v: number; // Float[0, 1]
 };
 
+export type VoidPlane = {
+  infEnterId: Id | null;
+} & IInfOrder;
+
 export type Room = {
   id: Id;
   width: number; // Int
   height: number; // Int
   color: Color;
-  isVoidPlane: boolean;
+  voidPlane: null | VoidPlane;
   zoomFactor: number;
   specialEffect: number; // int
   contents: RoomContent[];
@@ -94,7 +98,7 @@ export function defaultRoom(id: Id): Room {
     width: 5,
     height: 5,
     color: { h: 216, s: 0.8, v: 1.0 },
-    isVoidPlane: false,
+    voidPlane: null,
     zoomFactor: 1.0,
     specialEffect: 0,
     contents: [],
