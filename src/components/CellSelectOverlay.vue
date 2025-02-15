@@ -44,6 +44,10 @@ const gridStyles = Vue.computed(() => ({
 
 <template>
   <div class="cell-select-overlay" :style="gridStyles">
-    <div v-for="[x, y] of positions" @click="$emit('click-cell', [x, y])"></div>
+    <div
+      v-for="[x, y] of positions"
+      :key="`${x} ${y}`"
+      @click="$emit('click-cell', [x, y])"
+    ></div>
   </div>
 </template>

@@ -12,6 +12,7 @@ interface Props {
   depth: number;
   width?: string;
   height?: string;
+  selectedCell?: [number, number] | null;
 }
 const props = withDefaults(defineProps<Props>(), {
   width: "100%",
@@ -54,8 +55,9 @@ function getEyes(item: ICanBePlayer): Eyes {
 type Element = {
   x: number;
   y: number;
+  z: number;
   roomId?: Id;
-  box?: { color: string };
+  box?: { color: string; outline?: { color: string; width: number } };
   eyes?: Eyes;
   text?: string;
   button?: boolean;
@@ -66,12 +68,18 @@ const elements = Vue.computed<Element[]>(() => {
   const result: Element[] = [];
   room.value.contents.forEach((item) => {
     const { x, y } = item;
+    let isSelected =
+      props.selectedCell != null &&
+      x === props.selectedCell[0] &&
+      y === props.selectedCell[1];
+
     if (item.type === "wall") {
       const eyes = getEyes(item);
       if (eyes) {
         result.push({
           x,
           y,
+          z: 0,
           eyes,
         });
       }
@@ -80,38 +88,59 @@ const elements = Vue.computed<Element[]>(() => {
       result.push({
         x,
         y,
+        z: 0,
         box: { color: tinycolor(item.color).toRgbString() },
         eyes: getEyes(item),
       });
     }
     if (item.type === "floor" && item.buttonType === "PlayerButton") {
-      result.push({ x, y, button: true, eyes: "player" });
+      result.push({ x, y, z: 0, button: true, eyes: "player" });
     }
     if (item.type === "floor" && item.buttonType === "Button") {
-      result.push({ x, y, button: true });
+      result.push({ x, y, z: 0, button: true });
     }
     if (item.type === "room") {
       if (props.depth > 0) {
-        result.push({ x, y, roomId: item.id, eyes: getEyes(item) });
+        result.push({ x, y, z: 0, roomId: item.id, eyes: getEyes(item) });
       } else {
         result.push({
           x,
           y,
+          z: 0,
           box: { color: "black" },
           eyes: getEyes(item),
         });
       }
       if (item.isClone ?? false) {
-        result.push({ x, y, box: { color: "#FFFA" } });
+        result.push({ x, y, z: 0, box: { color: "#FFFA" } });
       }
       if (item.infEnterId != null) {
-        result.push({ x, y, text: "ε" });
+        result.push({ x, y, z: 0, text: "ε" });
       }
     }
     if (item.type === "inf-exit") {
-      result.push({ x, y, text: "∞", roomId: item.refId, eyes: getEyes(item) });
+      result.push({
+        x,
+        y,
+        z: 0,
+        text: "∞",
+        roomId: item.refId,
+        eyes: getEyes(item),
+      });
+    }
+    if (isSelected) {
+      result.push({
+        x,
+        y,
+        z: 1,
+        box: {
+          color: "transparent",
+          outline: { color: "#d2d205", width: 0.1 },
+        },
+      });
     }
   });
+  result.sort((a, b) => a.z - b.z);
   return result;
 });
 
@@ -157,7 +186,7 @@ const transform = Vue.computed(() => {
     <g>
       <g :transform="transform">
         <!-- floor -->
-        <template v-for="[x, y] of positions">
+        <template v-for="[x, y] of positions" :key="`${x} ${y}`">
           <rect
             :x="x"
             :y="y"
@@ -175,7 +204,10 @@ const transform = Vue.computed(() => {
           stroke-width="0.1"
           stroke="#666"
         ></path>
-        <template v-for="{ x, y, box, button, eyes, roomId, text } of elements">
+        <template
+          v-for="({ x, y, box, button, eyes, roomId, text }, i) of elements"
+          :key="i"
+        >
           <g :transform="`translate(${x}, ${y})`">
             <rect
               v-if="box"
@@ -184,8 +216,8 @@ const transform = Vue.computed(() => {
               width="1"
               height="1"
               :fill="box.color"
-              stroke="black"
-              :stroke-width="0.05"
+              :stroke="box.outline?.color ?? 'black'"
+              :stroke-width="box.outline?.width ?? 0.05"
             ></rect>
             <template v-if="roomId != null && depth > 0">
               <g transform="scale(1, -1) translate(0, -1)">

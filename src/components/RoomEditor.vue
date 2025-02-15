@@ -31,6 +31,8 @@ const room = Vue.computed(
     level.rooms.find((r) => r.id === props.roomId) ??
     _throw<Room>("room not found")
 );
+const selectedCell = Vue.ref<SelectedCellValue | null>(null);
+
 const onCellClicked = ([x, y]: [number, number]) => {
   function removeAt() {
     room.value.contents = room.value.contents.filter((c) => {
@@ -125,8 +127,6 @@ const onCellClicked = ([x, y]: [number, number]) => {
     };
   }
 };
-
-const selectedCell = Vue.ref<SelectedCellValue | null>(null);
 
 type Selected = {
   title: string;
@@ -230,7 +230,7 @@ roomContext.provide(room);
   />
   <div class="room-view-container">
     <div style="width: 520px; height: 520px; position: relative">
-      <RoomView :room-id="roomId" :depth="1" />
+      <RoomView :room-id="roomId" :depth="1" :selectedCell="selectedCell" />
       <CellSelectOverlay
         :width="room.width"
         :height="room.height"

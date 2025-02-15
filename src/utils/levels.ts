@@ -1,5 +1,6 @@
 import { pointEqual, range, _throw, type IPoint } from ".";
 import { KeyedMap } from "./collections";
+import { type integer } from "./types";
 
 export type LevelGuiStyle = "normal" | "grid" | "tui" | "oldstyle";
 export type Level = {
@@ -7,7 +8,7 @@ export type Level = {
   extrude: boolean;
   innerPush: boolean;
   style: LevelGuiStyle;
-  customLevelPalette: number; // int
+  customLevelPalette: integer;
   rooms: Room[];
 };
 
@@ -24,12 +25,12 @@ export type VoidPlane = {
 
 export type Room = {
   id: Id;
-  width: number; // Int
-  height: number; // Int
+  width: integer;
+  height: integer;
   color: Color;
   voidPlane: null | VoidPlane;
   zoomFactor: number;
-  specialEffect: number; // int
+  specialEffect: integer;
   contents: RoomContent[];
 };
 export type RoomContent = RoomRef | Block | Wall | Floor | InfExit;
@@ -59,7 +60,7 @@ export interface InfExit
   refId: Id;
 }
 export interface IInfOrder {
-  order: number; // integer
+  order: integer;
 }
 export type ButtonType = "Button" | "PlayerButton";
 export interface Floor extends IPositioned {

@@ -44,10 +44,12 @@ const saveLevel = async () => {
 const handleRoomSelect = (maybeSelectedRoomId: Id | null) => {
   if (state.roomSelect != null) {
     let selectedRoomId: Id;
+    let isNewRoom = false;
     if (maybeSelectedRoomId === null) {
       const newRoom = defaultRoom(state.nextRoomId++);
       level.rooms.push(newRoom);
       selectedRoomId = newRoom.id;
+      isNewRoom = true;
     } else {
       selectedRoomId = maybeSelectedRoomId;
     }
@@ -89,6 +91,9 @@ const handleRoomSelect = (maybeSelectedRoomId: Id | null) => {
         order: 0,
         flipped: false,
       });
+      if (isNewRoom) {
+        state.room = selectedRoomId;
+      }
     }
     state.roomSelect = null;
   }
