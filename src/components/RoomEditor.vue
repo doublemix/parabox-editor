@@ -59,6 +59,7 @@ const onCellClicked = ([x, y]: [number, number]) => {
   if (currentTool.value === "wall") {
     removeAt();
     room.value.contents.push({ type: "wall", x, y, player: null });
+    selectedCell.value = [x, y];
   }
   if (currentTool.value === "box") {
     removeAt();
@@ -69,6 +70,7 @@ const onCellClicked = ([x, y]: [number, number]) => {
       color: { h: 40, s: 1, v: 1 },
       player: null,
     });
+    selectedCell.value = [x, y];
   }
   if (currentTool.value === "player") {
     removeAt();
@@ -80,6 +82,7 @@ const onCellClicked = ([x, y]: [number, number]) => {
       player: 0,
       color: { h: 0, s: 1, v: 1 },
     });
+    selectedCell.value = [x, y];
   }
   if (currentTool.value === "button") {
     removeAt();
@@ -89,6 +92,7 @@ const onCellClicked = ([x, y]: [number, number]) => {
       y,
       buttonType: "Button",
     });
+    selectedCell.value = [x, y];
   }
   if (currentTool.value === "player-button") {
     removeAt();
@@ -98,6 +102,7 @@ const onCellClicked = ([x, y]: [number, number]) => {
       y,
       buttonType: "PlayerButton",
     });
+    selectedCell.value = [x, y];
   }
   if (currentTool.value === "room") {
     removeAt();
@@ -107,6 +112,7 @@ const onCellClicked = ([x, y]: [number, number]) => {
       y,
       targetId: state.room,
     };
+    selectedCell.value = [x, y];
   }
   if (currentTool.value === "clone") {
     removeAt();
@@ -116,6 +122,7 @@ const onCellClicked = ([x, y]: [number, number]) => {
       y,
       targetId: state.room,
     };
+    selectedCell.value = [x, y];
   }
   if (currentTool.value === "inf-exit") {
     removeAt();
@@ -125,6 +132,7 @@ const onCellClicked = ([x, y]: [number, number]) => {
       y,
       targetId: state.room,
     };
+    selectedCell.value = [x, y];
   }
 };
 
@@ -230,7 +238,7 @@ roomContext.provide(room);
   />
   <div class="room-view-container">
     <div style="width: 520px; height: 520px; position: relative">
-      <RoomView :room-id="roomId" :depth="1" :selectedCell="selectedCell" />
+      <RoomView :room-id="roomId" :depth="2" :selectedCell="selectedCell" />
       <CellSelectOverlay
         :width="room.width"
         :height="room.height"
